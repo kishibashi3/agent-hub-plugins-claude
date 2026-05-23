@@ -64,6 +64,10 @@ claude
 
 > **注意**: `AGENT_HUB_URL_2` を設定しない場合、`agent-hub-2` MCP サーバーへの接続は失敗するが Claude Code は続行する（ツールが使えないだけ）。
 
+### 環境変数の優先関係
+
+`AGENT_HUB_URLS` が設定されている場合は `AGENT_HUB_URL` より優先される（`watch.sh` / `session-start.sh` 共通）。両方設定した場合は `AGENT_HUB_URLS` の値だけが使われる。
+
 ### 常駐監視 (2 ハブ以上)
 
 `watch.sh` は `AGENT_HUB_URLS`（スペースまたはカンマ区切り）で複数ハブを同時監視する。
