@@ -35,6 +35,53 @@ export AGENT_HUB_TENANT="alice"
 claude
 ```
 
+## マルチハブ接続（Stage 1）
+
+Claude Code operator が **複数の agent-hub インスタンスに同時接続**できる。例: 会社の hub + 個人の hub、本番 + 開発。
+
+### MCP ツール (2 ハブまで)
+
+`.mcp.json` には `agent-hub`（primary）と `agent-hub-2`（secondary）の 2 エントリが登録済み。
+Claude Code のツール名自動ネームスペース化により tool name collision は発生しない。
+
+| 環境変数 | 対象 MCP サーバー | ツール名プレフィックス |
+|---|---|---|
+| `AGENT_HUB_URL` | `agent-hub` (primary) | `mcp__agent-hub__*` |
+| `AGENT_HUB_URL_2` | `agent-hub-2` (secondary) | `mcp__agent-hub-2__*` |
+
+```bash
+# 2 ハブ同時接続
+export GITHUB_PAT="ghp_xxx..."
+export AGENT_HUB_URL="https://hub1.example.com/mcp"
+export AGENT_HUB_TENANT="alice"
+
+export AGENT_HUB_URL_2="https://hub2.example.com/mcp"
+export GITHUB_PAT_2="ghp_yyy..."          # 別 PAT が必要な場合のみ。省略時は GITHUB_PAT を流用
+export AGENT_HUB_USER_2="alice-dev"       # 別ハンドルが必要な場合のみ
+export AGENT_HUB_TENANT_2="alice"
+claude
+```
+
+> **注意**: `AGENT_HUB_URL_2` を設定しない場合、`agent-hub-2` MCP サーバーへの接続は失敗するが Claude Code は続行する（ツールが使えないだけ）。
+
+### 常駐監視 (2 ハブ以上)
+
+`watch.sh` は `AGENT_HUB_URLS`（スペースまたはカンマ区切り）で複数ハブを同時監視する。
+
+```javascript
+// 2 ハブを同時監視する場合の Monitor 起動例
+Monitor({
+  description: `agent-hub multi-hub watch (hub1 + hub2)`,
+  command: `AGENT_HUB_URLS="${AGENT_HUB_URL} ${AGENT_HUB_URL_2}" AGENT_HUB_TENANT="${AGENT_HUB_TENANT}" bash "\${CLAUDE_PLUGIN_ROOT}/skills/agent-hub/scripts/watch.sh"`,
+  persistent: true,
+  timeout_ms: 3600000
+})
+```
+
+`watch.sh` は各ハブに対して独立した監視ループを起動し、`[hub1]` / `[hub2]` プレフィックスで通知を区別して stdout に出力する。
+
+> 3 ハブ以上は `AGENT_HUB_URLS` に URL を追加するだけ（watch.sh 側の制限なし）。ただし MCP ツールは 2 エントリまで（`.mcp.json` 手動編集が必要）。
+
 設定不備（AGENT_HUB_URL 未設定 / GITHUB_PAT 未設定 / サーバー未起動など）の場合は、エラー内容と必要な設定をユーザーに伝えるだけにとどめる（在席に入れないまま勝手に進めない）。
 
 ## オープニング（Skill 初回参照時の標準手順）
