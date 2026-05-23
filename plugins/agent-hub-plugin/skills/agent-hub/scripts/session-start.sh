@@ -32,6 +32,8 @@ else
   _CONTEXT="agent-hub plugin が有効です。このセッションの最初のアクションとして、ユーザーの依頼を待たずに agent-hub skill のオープニング手順を実行してください: (1) agent-hub skill を呼び、(2) Monitor を起動して在席状態に入り、(3) \`mcp__agent-hub__get_messages\` で未読メッセージを回収する。これら 3 ステップが完了するまでユーザーの依頼に進まない。すでに同セッションで Monitor が動いていれば該当ステップは skip 可。"
 fi
 
+# NOTE: _CONTEXT は JSON 文字列として直展開するため、ダブルクォート (") を
+# 含めてはならない。含む場合は jq 等でエスケープ処理を追加すること。
 cat <<JSON
 {
   "hookSpecificOutput": {
