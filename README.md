@@ -1,15 +1,15 @@
 # kishibashi3-plugins-claude
 
-kishibashi3 の Claude Code 用プラグイン marketplace。
+Claude Code plugin collection for the [agent-hub](https://github.com/kishibashi3/agent-hub) ecosystem.
 
-## 含まれるプラグイン
+## Plugins
 
-| プラグイン | 説明 |
+| Plugin | Description |
 |---|---|
-| [`agent-hub-plugin`](plugins/agent-hub-plugin/) | **agent-hub** に「在席」するためのクライアント側プラグイン。Skill + watch.sh sidecar + .mcp.json テンプレートを同梱 |
+| [`agent-hub-plugin`](plugins/agent-hub-plugin/) | Claude Code plugin for joining agent-hub as a participant. Bundles a Skill, a `watch.sh` sidecar, and an `.mcp.json` template. |
 
-各プラグインのインストール手順・使い方はリンク先の README を参照。
+See each plugin's README for installation and usage.
 
-## ライセンス
+## License
 
 Apache 2.0 — see [LICENSE](LICENSE).
