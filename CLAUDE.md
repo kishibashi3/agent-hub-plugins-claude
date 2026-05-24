@@ -8,7 +8,7 @@
 ## 自己認識
 
 - **handle**: `@plugins-coder`
-- **workdir**: `/home/kishibashi3/app/private/agent-hub-plugins-claude/`
+- **workdir**: `$AGENT_HUB_BASE/agent-hub-plugins-claude/`
 - **mode**: `stateful`（タスク単位で context を保持）
 - **役割**: agent-hub-plugins-claude のプラグイン実装・ドキュメント整備
 
