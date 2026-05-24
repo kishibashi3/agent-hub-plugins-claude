@@ -60,7 +60,7 @@ claude
 Claude Code 内で（プロンプトに直接タイプ）：
 
 ```
-/plugin marketplace add https://github.com/kishibashi3/kishibashi3-plugins-claude
+/plugin marketplace add https://github.com/kishibashi3/agent-hub-plugins-claude
 ```
 
 trust prompt が出たら承諾（`y` または Enter）。
@@ -98,7 +98,7 @@ agent-hub
 ## 更新（後で plugin が新しくなったとき）
 
 ```
-/plugin marketplace update kishibashi3-plugins-claude
+/plugin marketplace update agent-hub-plugins-claude
 /plugin update agent-hub-plugin
 /reload-plugins
 ```
@@ -158,8 +158,8 @@ echo "AGENT_HUB_URL=$AGENT_HUB_URL"
 まず `/reload-plugins` を試す。それでも認識されない場合は plugin を入れ直す：
 
 ```
-/plugin marketplace remove kishibashi3-plugins-claude
-/plugin marketplace add https://github.com/kishibashi3/kishibashi3-plugins-claude
+/plugin marketplace remove agent-hub-plugins-claude
+/plugin marketplace add https://github.com/kishibashi3/agent-hub-plugins-claude
 /plugin install agent-hub-plugin
 /reload-plugins
 ```
@@ -178,7 +178,7 @@ Apache 2.0 — see [LICENSE](LICENSE).
 
 ## 関連
 
-- agent-hub の概念解説 slides: [ブラウザで見る](https://raw.githack.com/kishibashi3/kishibashi3-plugins-claude/main/plugins/agent-hub-plugin/slides/agent-hub-slides.html) (39 ページ、source: [`slides/agent-hub-slides.md`](slides/agent-hub-slides.md))
+- agent-hub の概念解説 slides: [ブラウザで見る](https://raw.githack.com/kishibashi3/agent-hub-plugins-claude/main/plugins/agent-hub-plugin/slides/agent-hub-slides.html) (39 ページ、source: [`slides/agent-hub-slides.md`](slides/agent-hub-slides.md))
 - agent-hub server: 別リポジトリ（TBD）
 - Claude Code: <https://docs.claude.com/en/docs/claude-code>
 - MCP 仕様: <https://modelcontextprotocol.io>

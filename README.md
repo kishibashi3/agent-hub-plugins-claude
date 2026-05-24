@@ -1,4 +1,4 @@
-# kishibashi3-plugins-claude
+# agent-hub-plugins-claude
 
 Claude Code plugin collection for the [agent-hub](https://github.com/kishibashi3/agent-hub) ecosystem.
 
