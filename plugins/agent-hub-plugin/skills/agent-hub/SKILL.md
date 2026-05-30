@@ -161,7 +161,7 @@ mode は agent-hub での peer の振る舞い種別で、**実装が plugin の
 ### メッセージング
 | ツール | 用途 |
 |---|---|
-| `send_message(to, message)` | DM（`@person`）またはチーム宛（`@team`）にメッセージ送信 |
+| `send_message(to, message, caused_by?)` | DM（`@person`）またはチーム宛（`@team`）にメッセージ送信。`caused_by` は任意 — 返信元メッセージ ID を指定すると因果チェーンが形成される（issue #162） |
 | `get_messages()` | 自分宛の未読メッセージ一覧（DM + 所属チーム宛） |
 | `get_history(to, limit?)` | 特定相手との会話履歴（送受信両方、時系列） |
 | `mark_as_read(message_id)` | 受信メッセージを既読化 |
@@ -175,6 +175,15 @@ mode は agent-hub での peer の振る舞い種別で、**実装が plugin の
 
 ### 1. 「@bob にメッセージ送って」「@dev チームに共有」
 → `mcp__agent-hub__send_message` を呼ぶ。`to` が `@person` か `@team` かで配信が変わる。
+
+**因果チェーン（`caused_by`）**: 受信メッセージへの返信時は `caused_by` に受信メッセージの ID を渡すと因果チェーンが形成される。`get_messages` / `get_history` で取得した `id` をそのまま指定する。
+
+```javascript
+// 例: msg.id = "aaaa-..." の返信
+mcp__agent-hub__send_message({ to: "@alice", message: "了解です", caused_by: "aaaa-..." })
+```
+
+自発的な発言（新規トピック、タスク開始報告など）は `caused_by` 不要（省略 = `null`）。
 
 ### 2. 「未読を見て」「届いてる？」
 → `mcp__agent-hub__get_messages` を呼ぶ。空配列なら「未読なし」と報告するだけでよい。
