@@ -56,7 +56,7 @@ if [ -n "$PAT" ]; then
     -H "User-Agent: agent-hub-watch" \
     -H "Accept: application/vnd.github+json" \
     https://api.github.com/user 2>/dev/null \
-    | grep -oP '"login":\s*"\K[^"]+' | head -1)
+    | sed -nE 's/.*"login"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | head -1)
   if [ -z "$GITHUB_LOGIN" ]; then
     echo "[ERR $(date +%H:%M:%S)] could not resolve GitHub login from GITHUB_PAT (revoked or invalid?)"
     exit 1
