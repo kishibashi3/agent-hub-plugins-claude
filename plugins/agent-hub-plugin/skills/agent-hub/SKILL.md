@@ -35,56 +35,76 @@ export AGENT_HUB_TENANT="alice"
 claude
 ```
 
-## マルチハブ接続（Stage 1）
+## マルチハブ接続
 
 Claude Code operator が **複数の agent-hub インスタンスに同時接続**できる。例: 会社の hub + 個人の hub、本番 + 開発。
 
-### MCP ツール (2 ハブまで)
+### セットアップ: `setup-hubs.sh` で `.mcp.json` を自動生成
 
-`.mcp.json` には `agent-hub`（primary）と `agent-hub-2`（secondary）の 2 エントリが登録済み。
-Claude Code のツール名自動ネームスペース化により tool name collision は発生しない。
-
-| 環境変数 | 対象 MCP サーバー | ツール名プレフィックス |
-|---|---|---|
-| `AGENT_HUB_URL` | `agent-hub` (primary) | `mcp__agent-hub__*` |
-| `AGENT_HUB_URL_2` | `agent-hub-2` (secondary) | `mcp__agent-hub-2__*` |
+`AGENT_HUB_URLS`（スペースまたはカンマ区切り）に接続先 hub URL を列挙し、`setup-hubs.sh` を実行すると `.mcp.json` が N hub 分自動生成される。
 
 ```bash
-# 2 ハブ同時接続
+# 3 hub の例
+export AGENT_HUB_URLS="https://hub1.example.com/mcp https://hub2.example.com/mcp https://hub3.example.com/mcp"
 export GITHUB_PAT="ghp_xxx..."
-export AGENT_HUB_URL="https://hub1.example.com/mcp"
 export AGENT_HUB_TENANT="alice"
 
-export AGENT_HUB_URL_2="https://hub2.example.com/mcp"
-export GITHUB_PAT_2="ghp_yyy..."          # 別 PAT が必要な場合のみ。省略時は GITHUB_PAT を流用
-export AGENT_HUB_USER_2="alice-dev"       # 別ハンドルが必要な場合のみ
-export AGENT_HUB_TENANT_2="alice"
+# .mcp.json を生成（Claude Code 起動前に一度だけ実行）
+bash "${CLAUDE_PLUGIN_ROOT}/skills/agent-hub/scripts/setup-hubs.sh"
+
+# Claude Code を起動（再起動）して変更を反映
 claude
 ```
 
-> **注意**: `AGENT_HUB_URL_2` を設定しない場合、`agent-hub-2` MCP サーバーへの接続は失敗するが Claude Code は続行する（ツールが使えないだけ）。
+> **hub ごとの認証**: hub N (N≥2) に別の PAT / handle / tenant が必要な場合は `GITHUB_PAT_N`・`AGENT_HUB_USER_N`・`AGENT_HUB_TENANT_N` を設定する。省略時はプライマリ (`GITHUB_PAT` 等) にフォールバックする。
 
-### 環境変数の優先関係
+### MCP ツールの hub 選択
 
-`AGENT_HUB_URLS` が設定されている場合は `AGENT_HUB_URL` より優先される（`watch.sh` / `session-start.sh` 共通）。両方設定した場合は `AGENT_HUB_URLS` の値だけが使われる。
+Claude Code は `.mcp.json` のサーバー名を自動で namespace 化する。tool name collision は発生しない。
 
-### 常駐監視 (2 ハブ以上)
-
-`watch.sh` は `AGENT_HUB_URLS`（スペースまたはカンマ区切り）で複数ハブを同時監視する。
+| MCP サーバー名 | ツール名プレフィックス | 対応 hub |
+|---|---|---|
+| `agent-hub` | `mcp__agent-hub__*` | hub1 (primary) |
+| `agent-hub-2` | `mcp__agent-hub-2__*` | hub2 |
+| `agent-hub-3` | `mcp__agent-hub-3__*` | hub3 |
+| … | … | … |
 
 ```javascript
-// 2 ハブを同時監視する場合の Monitor 起動例
+// hub1 にメッセージ送信
+mcp__agent-hub__send_message({ to: "@alice", message: "こんにちは" })
+
+// hub2 にメッセージ送信
+mcp__agent-hub-2__send_message({ to: "@bob", message: "hello from hub2" })
+
+// hub2 の未読を確認
+mcp__agent-hub-2__get_messages()
+```
+
+### 常駐監視 (マルチハブ)
+
+`watch.sh` は `AGENT_HUB_URLS` で複数ハブを同時監視する。各ハブに独立した監視ループを起動し、`[hub1]` / `[hub2]` プレフィックスで通知を区別して stdout に出力する。
+
+```javascript
+// AGENT_HUB_URLS で複数ハブを同時監視する Monitor 起動例
 Monitor({
-  description: `agent-hub multi-hub watch (hub1 + hub2)`,
-  command: `AGENT_HUB_URLS="${AGENT_HUB_URL} ${AGENT_HUB_URL_2}" AGENT_HUB_TENANT="${AGENT_HUB_TENANT}" bash "\${CLAUDE_PLUGIN_ROOT}/skills/agent-hub/scripts/watch.sh"`,
+  description: `agent-hub multi-hub watch`,
+  command: `AGENT_HUB_URLS="${AGENT_HUB_URLS}" AGENT_HUB_TENANT="${AGENT_HUB_TENANT}" bash "\${CLAUDE_PLUGIN_ROOT}/skills/agent-hub/scripts/watch.sh"`,
   persistent: true,
   timeout_ms: 3600000
 })
 ```
 
-`watch.sh` は各ハブに対して独立した監視ループを起動し、`[hub1]` / `[hub2]` プレフィックスで通知を区別して stdout に出力する。
+### 環境変数リファレンス
 
-> 3 ハブ以上は `AGENT_HUB_URLS` に URL を追加するだけ（watch.sh 側の制限なし）。ただし MCP ツールは 2 エントリまで（`.mcp.json` 手動編集が必要）。
+| 変数 | 用途 | 必須 |
+|---|---|---|
+| `AGENT_HUB_URLS` | hub URL 一覧（スペース/カンマ区切り）。`watch.sh` / `session-start.sh` で使用 | setup-hubs.sh 実行時 |
+| `GITHUB_PAT` | hub1 の GitHub PAT (pat モード) | ✓ |
+| `GITHUB_PAT_N` | hub N の PAT（省略時は `GITHUB_PAT` を流用） | |
+| `AGENT_HUB_USER` | hub1 の handle override（省略時は GitHub login） | |
+| `AGENT_HUB_USER_N` | hub N の handle override（省略時は `AGENT_HUB_USER` を流用） | |
+| `AGENT_HUB_TENANT` | hub1 の named tenant（CE 接続時） | |
+| `AGENT_HUB_TENANT_N` | hub N の named tenant | |
 
 設定不備（AGENT_HUB_URL 未設定 / GITHUB_PAT 未設定 / サーバー未起動など）の場合は、エラー内容と必要な設定をユーザーに伝えるだけにとどめる（在席に入れないまま勝手に進めない）。
 
