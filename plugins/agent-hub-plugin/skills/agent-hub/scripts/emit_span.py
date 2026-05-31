@@ -137,7 +137,6 @@ def emit_span(msg_id: str, model: str, telemetry_url: str) -> None:
         ImportError: opentelemetry パッケージが未インストール。
         Exception:   その他のエラー（呼び出し元が握り潰す）。
     """
-    from opentelemetry import trace
     from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -148,8 +147,8 @@ def emit_span(msg_id: str, model: str, telemetry_url: str) -> None:
     provider = TracerProvider()
     # hook は短命プロセス: SimpleSpanProcessor で span 終了時に即エクスポート
     provider.add_span_processor(SimpleSpanProcessor(exporter))
-    trace.set_tracer_provider(provider)
-    tracer = trace.get_tracer("agent-hub-plugin")
+    # グローバル TracerProvider を書き換えずに tracer を取得 (テスタビリティ向上)
+    tracer = provider.get_tracer("agent-hub-plugin")
 
     with tracer.start_as_current_span("plugin.send_message") as span:
         span.set_attribute("msg_id", msg_id)
@@ -188,6 +187,8 @@ def main() -> int:
         return 0  # msg_id なし (エラーレスポンス等) → サイレント skip
 
     # ---- model 取得 ----
+    # optional with documented default — ANTHROPIC_MODEL は Claude Code runtime が設定する。
+    # 未設定時は 'unknown' を gen_ai.request.model telemetry label として使用する。
     model = os.environ.get("ANTHROPIC_MODEL", "unknown")
 
     # ---- span emit ----

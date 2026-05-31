@@ -192,38 +192,32 @@ def _has_opentelemetry() -> bool:
 @unittest.skipUnless(_has_opentelemetry(), "opentelemetry-sdk / exporter not installed")
 class TestEmitSpan(unittest.TestCase):
     def test_span_attributes(self) -> None:
-        """emit_span が正しい属性で span を emit することを確認する。"""
+        """emit_span() を経由して span が正しい属性で emit されることを確認する。
+
+        OTLPSpanExporter と TracerProvider をパッチして InMemorySpanExporter に
+        差し替え、target.emit_span() 本体を実際に呼び出して exported span を検証する。
+        """
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-        from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-        from opentelemetry import trace
 
-        # インメモリ exporter で span をキャプチャ
-        exporter = InMemorySpanExporter()
-        provider = TracerProvider()
-        provider.add_span_processor(SimpleSpanProcessor(exporter))
+        # InMemorySpanExporter で span をキャプチャ
+        # processor は emit_span() 内の add_span_processor() が追加するため事前追加不要
+        in_memory_exporter = InMemorySpanExporter()
+        test_provider = TracerProvider()
 
-        with patch("opentelemetry.trace.get_tracer_provider", return_value=provider), \
-             patch("opentelemetry.sdk.trace.TracerProvider", return_value=provider), \
-             patch(
-                 "opentelemetry.exporter.otlp.proto.http.trace_exporter.OTLPSpanExporter",
-                 return_value=exporter,
-             ):
-            # emit_span をモック provider で実行
-            tracer = provider.get_tracer("agent-hub-plugin")
-            from opentelemetry.trace import StatusCode
-            with tracer.start_as_current_span("plugin.send_message") as span:
-                span.set_attribute("msg_id", "test-msg-id")
-                span.set_attribute("gen_ai.request.model", "claude-sonnet-4-5")
-                span.set_attribute("gen_ai.usage.input_tokens", 0)
-                span.set_attribute("gen_ai.usage.output_tokens", 0)
-                span.set_attribute("gen_ai.usage.cache_read.input_tokens", 0)
-                span.set_status(StatusCode.OK)
+        with patch(
+            "opentelemetry.exporter.otlp.proto.http.trace_exporter.OTLPSpanExporter",
+            return_value=in_memory_exporter,
+        ), patch(
+            "opentelemetry.sdk.trace.TracerProvider",
+            return_value=test_provider,
+        ):
+            # emit_span() 本体を呼ぶ — span 属性が正しく設定されることを検証
+            target.emit_span("test-msg-id", "claude-sonnet-4-5", "http://otel:4318")
 
-        spans = exporter.get_finished_spans()
+        spans = in_memory_exporter.get_finished_spans()
         assert len(spans) == 1
-        span = spans[0]
-        attrs = dict(span.attributes or {})
+        attrs = dict(spans[0].attributes or {})
 
         assert attrs["msg_id"] == "test-msg-id"
         assert attrs["gen_ai.request.model"] == "claude-sonnet-4-5"
