@@ -51,14 +51,26 @@ if [ -n "$TENANT" ]; then
 fi
 if [ -n "$PAT" ]; then
   # pat モード: GitHub API /user を叩いて login 取得（owner 確認）
-  GITHUB_LOGIN=$(curl -s --max-time 10 \
+  # HTTP code + raw body を一度に取得し、失敗原因を特定できるようにする
+  _GH_WATCH_LOG="/tmp/agent-hub-watch-$$.log"
+  _GH_RAW=$(curl -s -w '\nHTTP_CODE:%{http_code}' --max-time 10 \
     -H "Authorization: Bearer $PAT" \
     -H "User-Agent: agent-hub-watch" \
     -H "Accept: application/vnd.github+json" \
-    https://api.github.com/user 2>/dev/null \
+    https://api.github.com/user 2>&1)
+  _GH_HTTP_CODE=$(printf '%s' "$_GH_RAW" | grep '^HTTP_CODE:' | cut -d: -f2)
+  _GH_BODY=$(printf '%s' "$_GH_RAW" | grep -v '^HTTP_CODE:')
+  GITHUB_LOGIN=$(printf '%s' "$_GH_BODY" \
     | sed -nE 's/.*"login"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | head -1)
   if [ -z "$GITHUB_LOGIN" ]; then
-    echo "[ERR $(date +%H:%M:%S)] could not resolve GitHub login from GITHUB_PAT (revoked or invalid?)"
+    printf '%s\n' "$_GH_RAW" > "$_GH_WATCH_LOG"
+    if [ "$_GH_HTTP_CODE" = "401" ]; then
+      echo "[ERR $(date +%H:%M:%S)] GITHUB_PAT rejected by GitHub API (HTTP 401) — PAT may be revoked, expired, or missing 'read:user' scope"
+    elif [ -z "$_GH_HTTP_CODE" ] || [ "$_GH_HTTP_CODE" = "000" ]; then
+      echo "[ERR $(date +%H:%M:%S)] could not reach GitHub API (network/proxy error?) — debug log: $_GH_WATCH_LOG"
+    else
+      echo "[ERR $(date +%H:%M:%S)] failed to parse GitHub /user response (HTTP $_GH_HTTP_CODE) — debug log: $_GH_WATCH_LOG"
+    fi
     exit 1
   fi
   AUTH_HEADERS+=(-H "Authorization: Bearer $PAT")
@@ -124,7 +136,16 @@ _watch_hub() {
     local sid
     sid=$(echo "$init" | grep -i "^mcp-session-id:" | awk '{print $2}' | tr -d '\r\n')
     if [ -z "$sid" ]; then
-      echo "[$label ERR $(date +%H:%M:%S)] initialize failed (is agent-hub running at $hub_url ?), retry in 5s"
+      # 真因を特定するため HTTP status code を抽出して表示
+      local _init_http_code
+      _init_http_code=$(printf '%s' "$init" | grep -E "^HTTP/" | tail -1 | awk '{print $2}')
+      if [ -z "$_init_http_code" ]; then
+        echo "[$label ERR $(date +%H:%M:%S)] initialize failed: no response from $hub_url — is agent-hub running? retry in 5s"
+      elif [ "$_init_http_code" = "401" ]; then
+        echo "[$label ERR $(date +%H:%M:%S)] initialize failed: HTTP 401 Unauthorized — check GITHUB_PAT scope for $hub_url, retry in 5s"
+      else
+        echo "[$label ERR $(date +%H:%M:%S)] initialize failed: HTTP $_init_http_code from $hub_url, retry in 5s"
+      fi
       sleep 5
       continue
     fi
