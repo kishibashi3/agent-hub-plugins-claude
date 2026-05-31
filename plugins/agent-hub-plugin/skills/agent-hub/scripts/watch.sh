@@ -121,7 +121,7 @@ fi
 # バックグラウンドサブシェルとして起動するため export は不要（fork 継承）。
 #
 # retry: exponential backoff (5s→10s→20s→40s→60s cap)。
-#        subscribe 成功時にリセット。
+#        initialize 成功時・subscribe 成功時の両方でリセット。
 # dedup: 同一エラーメッセージの連続出力を抑制し "(repeated Nx)" でサマリ表示。
 # ---------------------------------------------------------------------------
 _watch_hub() {
@@ -173,6 +173,13 @@ _watch_hub() {
       [ "$_backoff" -gt "$_max_backoff" ] && _backoff=$_max_backoff
       continue
     fi
+    # initialize 成功: backoff と dedup をリセット（subscribe 失敗時に古い backoff 値を引き継がないよう）
+    [ "$_err_repeat" -gt 0 ] && \
+      echo "[$label ERR $(date +%H:%M:%S)] (above error repeated ${_err_repeat}x)"
+    _backoff=5
+    _last_err=""
+    _err_repeat=0
+
     if [ -n "$first_connect" ]; then
       echo "[$label init $(date +%H:%M:%S)] sessionId=${sid:0:8}... user=$USER_ID"
     else
