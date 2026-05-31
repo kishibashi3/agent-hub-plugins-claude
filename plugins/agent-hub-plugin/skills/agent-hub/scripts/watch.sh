@@ -119,11 +119,22 @@ fi
 #
 # 親シェルの AUTH_HEADERS 配列・USER_ID 変数を参照する。
 # バックグラウンドサブシェルとして起動するため export は不要（fork 継承）。
+#
+# retry: exponential backoff (5s→10s→20s→40s→60s cap)。
+#        subscribe 成功時にリセット。
+# dedup: 同一エラーメッセージの連続出力を抑制し "(repeated Nx)" でサマリ表示。
 # ---------------------------------------------------------------------------
 _watch_hub() {
   local hub_url="$1"
   local label="$2"
   local first_connect=1
+
+  # exponential backoff state
+  local _backoff=5
+  local _max_backoff=60
+  # error dedup state
+  local _last_err=""
+  local _err_repeat=0
 
   while true; do
     # 1) initialize で sessionId を取り出す
@@ -139,14 +150,27 @@ _watch_hub() {
       # 真因を特定するため HTTP status code を抽出して表示
       local _init_http_code
       _init_http_code=$(printf '%s' "$init" | grep -E "^HTTP/" | tail -1 | awk '{print $2}')
+      local _err_msg
       if [ -z "$_init_http_code" ]; then
-        echo "[$label ERR $(date +%H:%M:%S)] initialize failed: no response from $hub_url — is agent-hub running? retry in 5s"
+        _err_msg="initialize failed: no response from $hub_url — is agent-hub running?"
       elif [ "$_init_http_code" = "401" ]; then
-        echo "[$label ERR $(date +%H:%M:%S)] initialize failed: HTTP 401 Unauthorized — check GITHUB_PAT scope for $hub_url, retry in 5s"
+        _err_msg="initialize failed: HTTP 401 Unauthorized — check GITHUB_PAT scope for $hub_url"
       else
-        echo "[$label ERR $(date +%H:%M:%S)] initialize failed: HTTP $_init_http_code from $hub_url, retry in 5s"
+        _err_msg="initialize failed: HTTP $_init_http_code from $hub_url"
       fi
-      sleep 5
+      # dedup: 同一エラーは repeat カウントのみ。変化時に "(above repeated Nx)" を flush して新メッセージ出力
+      if [ "$_err_msg" = "$_last_err" ]; then
+        _err_repeat=$((_err_repeat + 1))
+      else
+        [ "$_err_repeat" -gt 0 ] && \
+          echo "[$label ERR $(date +%H:%M:%S)] (above error repeated ${_err_repeat}x)" >&2
+        echo "[$label ERR $(date +%H:%M:%S)] $_err_msg, retry in ${_backoff}s"
+        _last_err="$_err_msg"
+        _err_repeat=0
+      fi
+      sleep "$_backoff"
+      _backoff=$((_backoff * 2))
+      [ "$_backoff" -gt "$_max_backoff" ] && _backoff=$_max_backoff
       continue
     fi
     if [ -n "$first_connect" ]; then
@@ -172,10 +196,27 @@ _watch_hub() {
       -H "Accept: application/json, text/event-stream" \
       -d "{\"jsonrpc\":\"2.0\",\"method\":\"resources/subscribe\",\"params\":{\"uri\":\"inbox://@$USER_ID\"},\"id\":1}" 2>/dev/null)
     if echo "$sub" | grep -q '"error"'; then
-      echo "[$label ERR $(date +%H:%M:%S)] subscribe failed: $sub"
-      sleep 5
+      local _sub_msg="subscribe failed: $sub"
+      if [ "$_sub_msg" = "$_last_err" ]; then
+        _err_repeat=$((_err_repeat + 1))
+      else
+        [ "$_err_repeat" -gt 0 ] && \
+          echo "[$label ERR $(date +%H:%M:%S)] (above error repeated ${_err_repeat}x)" >&2
+        echo "[$label ERR $(date +%H:%M:%S)] $_sub_msg, retry in ${_backoff}s"
+        _last_err="$_sub_msg"
+        _err_repeat=0
+      fi
+      sleep "$_backoff"
+      _backoff=$((_backoff * 2))
+      [ "$_backoff" -gt "$_max_backoff" ] && _backoff=$_max_backoff
       continue
     fi
+
+    # 接続成功: backoff と dedup をリセット
+    _backoff=5
+    _last_err=""
+    _err_repeat=0
+
     if [ -n "$first_connect" ]; then
       echo "[$label subscribed $(date +%H:%M:%S)] inbox://@$USER_ID — waiting for pushes..."
       first_connect=
