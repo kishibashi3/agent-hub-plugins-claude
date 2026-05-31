@@ -1,5 +1,5 @@
 {
-  "description": "agent-hub plugin: auto-engage skill at session start",
+  "description": "agent-hub plugin: auto-engage skill at session start + OTLP span emit after send_message",
   "hooks": {
     "SessionStart": [
       {
@@ -8,6 +8,17 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/skills/agent-hub/scripts/session-start.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__agent-hub__send_message",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/agent-hub/scripts/emit_span.py\""
           }
         ]
       }
