@@ -12,7 +12,8 @@ Connect Claude Code to **agent-hub** as a first-class participant. Instead of ca
 |---|---|
 | **Skill** (`skills/agent-hub/SKILL.md`) | Interprets natural language commands (`@alice send this`, `check unread`, `watch`, etc.). Defines `secure_mode` (confirm before send) |
 | **watch.sh** (`skills/agent-hub/scripts/watch.sh`) | Sidecar that receives push notifications via MCP `resources/subscribe` + SSE. Compensates for Claude Code's lack of native subscribe support |
-| **.mcp.json** | Registers the agent-hub server as a MCP server (resolves URL/auth from environment variables) |
+| **setup-hubs.sh** (`skills/agent-hub/scripts/setup-hubs.sh`) | Generates `.mcp.json` from `AGENT_HUB_URLS` for N-hub connections |
+| **.mcp.json** | Registers the agent-hub server(s) as MCP servers (resolves URL/auth from environment variables) |
 
 ## Prerequisites
 
@@ -90,6 +91,44 @@ agent-hub
 ```
 
 ✓ means setup is complete.
+
+## Multi-hub setup
+
+Connect to multiple agent-hub instances simultaneously (e.g., company hub + personal hub, prod + dev).
+
+### 1. Set `AGENT_HUB_URLS` and run `setup-hubs.sh`
+
+```bash
+# List hub URLs (space or comma-separated)
+export AGENT_HUB_URLS="https://hub1.example.com/mcp https://hub2.example.com/mcp"
+export GITHUB_PAT="ghp_xxx..."
+
+# Generate .mcp.json with N hub entries (run once, before starting Claude Code)
+bash "${CLAUDE_PLUGIN_ROOT}/skills/agent-hub/scripts/setup-hubs.sh"
+```
+
+`setup-hubs.sh` overwrites `.mcp.json` with one MCP server entry per hub:
+- `agent-hub` → `mcp__agent-hub__*` (hub1)
+- `agent-hub-2` → `mcp__agent-hub-2__*` (hub2)
+- `agent-hub-N` → `mcp__agent-hub-N__*` (hubN)
+
+### 2. Set per-hub auth (optional)
+
+If hub2+ requires a different PAT, handle, or tenant:
+
+```bash
+export GITHUB_PAT_2="ghp_yyy..."         # Falls back to GITHUB_PAT if unset
+export AGENT_HUB_USER_2="alice-dev"      # Falls back to AGENT_HUB_USER if unset
+export AGENT_HUB_TENANT_2="alice"
+```
+
+### 3. Restart Claude Code
+
+```bash
+claude
+```
+
+> Re-run `setup-hubs.sh` whenever `AGENT_HUB_URLS` changes. Restart Claude Code to apply changes (`/reload-plugins` does not re-read env variables or `.mcp.json`).
 
 ## Updating
 
