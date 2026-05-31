@@ -66,8 +66,11 @@ _PR_URL_RE = re.compile(r"https://github\.com/[^\s]+/pull/\d+")
 # Bash コマンド中の "git commit" キーワード
 _GIT_COMMIT_CMDS = ("git commit",)
 
-# Bash コマンド中の "gh pr" キーワード (create / merge 等)
-_GH_PR_CMDS = ("gh pr create", "gh pr merge")
+# Bash コマンド中の "gh pr create" キーワード
+_GH_PR_CREATE_CMD = "gh pr create"
+
+# Bash コマンド中の "gh pr merge" キーワード
+_GH_PR_MERGE_CMD = "gh pr merge"
 
 
 # ---------------------------------------------------------------------------
@@ -162,14 +165,27 @@ def parse_artifact(hook_payload: dict[str, Any]) -> dict[str, Any] | None:
                 },
             }
 
-        # gh pr create / merge
-        if any(kw in command for kw in _GH_PR_CMDS):
+        # gh pr create
+        if _GH_PR_CREATE_CMD in command:
             m = _PR_URL_RE.search(output)
             pr_url = m.group(0) if m else ""
             return {
                 "span_name": "plugin.artifact.pr_create",
                 "attributes": {
                     "artifact.type": "pr_create",
+                    "artifact.pr_url": pr_url,
+                    "artifact.command": command[:256],
+                },
+            }
+
+        # gh pr merge — create と意味が異なるため別 span 名で区別 (Minor #3)
+        if _GH_PR_MERGE_CMD in command:
+            m = _PR_URL_RE.search(output)
+            pr_url = m.group(0) if m else ""
+            return {
+                "span_name": "plugin.artifact.pr_merge",
+                "attributes": {
+                    "artifact.type": "pr_merge",
                     "artifact.pr_url": pr_url,
                     "artifact.command": command[:256],
                 },

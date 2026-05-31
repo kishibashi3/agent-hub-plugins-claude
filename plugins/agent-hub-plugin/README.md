@@ -198,6 +198,7 @@ A **PostToolUse hook** (`emit_span.py`) fires automatically after each `mcp__age
 | `plugin.artifact.file_edit` | `artifact.type`, `artifact.path` |
 | `plugin.artifact.git_commit` | `artifact.type`, `artifact.commit_hash`, `artifact.command` |
 | `plugin.artifact.pr_create` | `artifact.type`, `artifact.pr_url`, `artifact.command` |
+| `plugin.artifact.pr_merge` | `artifact.type`, `artifact.pr_url`, `artifact.command` |
 
 All spans include `msg_id` (join key) and `gen_ai.request.model`.
 

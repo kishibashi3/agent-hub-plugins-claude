@@ -77,6 +77,7 @@ def _state_path(session_id: str) -> Path:
 
     session_id にはファイル名として安全な文字のみを残す（パストラバーサル対策）。
     """
+    # optional with documented default — TMPDIR は POSIX 標準。未設定時は /tmp を使用する。
     tmp = Path(os.environ.get("TMPDIR", "/tmp"))
     safe = "".join(c for c in session_id if c.isalnum() or c in "-_")[:64]
     return tmp / f"agent-hub-msg-id-{safe}"
@@ -93,7 +94,12 @@ def save_msg_id(session_id: str, msg_id: str) -> None:
         msg_id: 保存する agent-hub message ID。
     """
     try:
-        _state_path(session_id).write_text(msg_id, encoding="utf-8")
+        p = _state_path(session_id)
+        # mode 0o600: owner-only read/write — /tmp は world-accessible なため
+        # Path.write_text() (umask 依存) ではなく os.open() で明示的に設定する
+        fd = os.open(str(p), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(msg_id)
     except OSError:
         pass  # non-fatal
 

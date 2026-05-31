@@ -247,11 +247,14 @@ class TestParseArtifactBashGhPr(unittest.TestCase):
         assert result["attributes"]["artifact.pr_url"] == ""
 
     def test_gh_pr_merge_detected(self) -> None:
+        """gh pr merge は pr_create と別の span 名 pr_merge になる (Minor #3)。"""
         output = "https://github.com/owner/repo/pull/99\n"
         payload = _bash_payload("gh pr merge 99 --squash", output)
         result = target.parse_artifact(payload)
         assert result is not None
-        assert result["span_name"] == "plugin.artifact.pr_create"
+        assert result["span_name"] == "plugin.artifact.pr_merge"
+        assert result["attributes"]["artifact.type"] == "pr_merge"
+        assert result["attributes"]["artifact.pr_url"] == "https://github.com/owner/repo/pull/99"
 
     def test_gh_pr_error_response_returns_none(self) -> None:
         payload = _bash_payload("gh pr create --title 'x'", "", is_error=True)
@@ -459,7 +462,6 @@ class TestMain(unittest.TestCase):
         """emit_span.save_msg_id() で保存した msg_id が emit_artifact_span() に渡される。"""
         with tempfile.TemporaryDirectory() as tmpdir:
             # send_message hook が msg_id を保存
-            emit_span.save_msg_id.__module__  # ensure imported
             with patch.dict(os.environ, {"TMPDIR": tmpdir}):
                 emit_span.save_msg_id("sess-xyz", "linked-msg-id")
 
