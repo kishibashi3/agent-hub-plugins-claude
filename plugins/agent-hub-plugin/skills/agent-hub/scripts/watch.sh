@@ -163,7 +163,7 @@ _watch_hub() {
         _err_repeat=$((_err_repeat + 1))
       else
         [ "$_err_repeat" -gt 0 ] && \
-          echo "[$label ERR $(date +%H:%M:%S)] (above error repeated ${_err_repeat}x)" >&2
+          echo "[$label ERR $(date +%H:%M:%S)] (above error repeated ${_err_repeat}x)"
         echo "[$label ERR $(date +%H:%M:%S)] $_err_msg, retry in ${_backoff}s"
         _last_err="$_err_msg"
         _err_repeat=0
@@ -201,7 +201,7 @@ _watch_hub() {
         _err_repeat=$((_err_repeat + 1))
       else
         [ "$_err_repeat" -gt 0 ] && \
-          echo "[$label ERR $(date +%H:%M:%S)] (above error repeated ${_err_repeat}x)" >&2
+          echo "[$label ERR $(date +%H:%M:%S)] (above error repeated ${_err_repeat}x)"
         echo "[$label ERR $(date +%H:%M:%S)] $_sub_msg, retry in ${_backoff}s"
         _last_err="$_sub_msg"
         _err_repeat=0
@@ -212,7 +212,9 @@ _watch_hub() {
       continue
     fi
 
-    # 接続成功: backoff と dedup をリセット
+    # 接続成功: dedup pending があれば flush してからリセット
+    [ "$_err_repeat" -gt 0 ] && \
+      echo "[$label ERR $(date +%H:%M:%S)] (above error repeated ${_err_repeat}x)"
     _backoff=5
     _last_err=""
     _err_repeat=0
