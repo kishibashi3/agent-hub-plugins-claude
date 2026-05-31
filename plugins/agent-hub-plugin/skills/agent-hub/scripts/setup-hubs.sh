@@ -37,7 +37,7 @@
 #   hub1 → mcp__agent-hub__send_message, mcp__agent-hub__get_messages, ...
 #   hub2 → mcp__agent-hub-2__send_message, mcp__agent-hub-2__get_messages, ...
 
-set -uo pipefail
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # scripts/ → agent-hub/ → skills/ → agent-hub-plugin/
@@ -57,9 +57,11 @@ if [ -z "${AGENT_HUB_URLS:-}" ]; then
 fi
 
 # カンマをスペースに正規化してから配列化（空要素を除去）
+# unquoted word-split による glob expansion を避けるため read -ra を使用
 _raw="${AGENT_HUB_URLS//,/ }"
 HUBS=()
-for _url in $_raw; do
+read -ra _tokens <<< "$_raw"
+for _url in "${_tokens[@]}"; do
   [ -n "$_url" ] && HUBS+=("$_url")
 done
 HUB_COUNT="${#HUBS[@]}"
@@ -99,9 +101,13 @@ echo "[setup-hubs] $HUB_COUNT hub(s) を検出。$MCP_JSON を生成中..."
     # エントリ間のカンマ区切り
     [ "$i" -gt 0 ] && printf ',\n'
 
+    # URL を JSON 文字列として安全に埋め込む（\ と " をエスケープ）
+    _escaped_url="${hub_url//\\/\\\\}"
+    _escaped_url="${_escaped_url//\"/\\\"}"
+
     printf '  "%s": {\n' "$_name"
     printf '    "type": "http",\n'
-    printf '    "url": "%s",\n' "$hub_url"
+    printf '    "url": "%s",\n' "$_escaped_url"
     printf '    "headers": {\n'
     printf '      "Authorization": "Bearer %s",\n' "$_pat"
     printf '      "X-User-Id": "%s",\n' "$_user"

@@ -98,7 +98,7 @@ Monitor({
 
 | 変数 | 用途 | 必須 |
 |---|---|---|
-| `AGENT_HUB_URLS` | hub URL 一覧（スペース/カンマ区切り）。`watch.sh` / `session-start.sh` で使用 | setup-hubs.sh 実行時 |
+| `AGENT_HUB_URLS` | hub URL 一覧（スペース/カンマ区切り）。`setup-hubs.sh` / `watch.sh` / `session-start.sh` で使用 | setup-hubs.sh 実行時 |
 | `GITHUB_PAT` | hub1 の GitHub PAT (pat モード) | ✓ |
 | `GITHUB_PAT_N` | hub N の PAT（省略時は `GITHUB_PAT` を流用） | |
 | `AGENT_HUB_USER` | hub1 の handle override（省略時は GitHub login） | |
@@ -106,7 +106,9 @@ Monitor({
 | `AGENT_HUB_TENANT` | hub1 の named tenant（CE 接続時） | |
 | `AGENT_HUB_TENANT_N` | hub N の named tenant | |
 
-設定不備（AGENT_HUB_URL 未設定 / GITHUB_PAT 未設定 / サーバー未起動など）の場合は、エラー内容と必要な設定をユーザーに伝えるだけにとどめる（在席に入れないまま勝手に進めない）。
+> **`AGENT_HUB_URL`（単数形）からの移行**: 従来の `AGENT_HUB_URL` は `.mcp.json` のデフォルト設定（`${AGENT_HUB_URL}` 参照）でのみ動作する。`setup-hubs.sh` を使う場合は `AGENT_HUB_URLS`（複数形、URL を 1 つだけ設定しても可）に切り替えて `.mcp.json` を再生成する。
+
+設定不備（`AGENT_HUB_URLS` 未設定 / `GITHUB_PAT` 未設定 / サーバー未起動など）の場合は、エラー内容と必要な設定をユーザーに伝えるだけにとどめる（在席に入れないまま勝手に進めない）。
 
 ## オープニング（Skill 初回参照時の標準手順）
 
