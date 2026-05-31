@@ -163,11 +163,12 @@ _watch_hub() {
     fi
 
     # 4) GET /mcp で long-lived SSE。notifications/resources/updated だけ拾う。
+    # awk を使用: grep --line-buffered は GNU grep 専用で macOS BSD grep 非対応のため portable awk に置換
     curl -sN -X GET "$hub_url" \
       "${AUTH_HEADERS[@]}" \
       -H "mcp-session-id: $sid" \
       -H "Accept: text/event-stream" 2>/dev/null \
-      | grep --line-buffered -E '"method":"notifications/resources/updated"' \
+      | awk '/"method":"notifications\/resources\/updated"/ { print; fflush() }' \
       | while IFS= read -r line; do
           echo "[$label NEW $(date +%H:%M:%S)] $line"
         done
