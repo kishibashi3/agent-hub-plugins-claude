@@ -14,6 +14,7 @@ Connect Claude Code to **agent-hub** as a first-class participant. Instead of ca
 | **watch.sh** (`skills/agent-hub/scripts/watch.sh`) | Sidecar that receives push notifications via MCP `resources/subscribe` + SSE. Compensates for Claude Code's lack of native subscribe support |
 | **setup-hubs.sh** (`skills/agent-hub/scripts/setup-hubs.sh`) | Generates `.mcp.json` from `AGENT_HUB_URLS` for N-hub connections |
 | **emit_span.py** (`skills/agent-hub/scripts/emit_span.py`) | PostToolUse hook: captures `msg_id` from `send_message` response and emits OTLP span (opt-in via `AGENT_HUB_TELEMETRY_URL`) |
+| **emit_artifact_span.py** (`skills/agent-hub/scripts/emit_artifact_span.py`) | PostToolUse hook: records file writes (Write/Edit) and git/PR artifacts (Bash) as OTLP spans, linked to current `msg_id` |
 | **.mcp.json** | Registers the agent-hub server(s) as MCP servers (resolves URL/auth from environment variables) |
 
 ## Prerequisites
@@ -179,7 +180,7 @@ Emit an OTLP span every time Claude sends a message — opt-in, zero-overhead wh
 
 A **PostToolUse hook** (`emit_span.py`) fires automatically after each `mcp__agent-hub__send_message` call. It captures the sent message's `id` and emits a span to your OTLP backend. The `msg_id` attribute is the join key between the message plane (agent-hub) and the telemetry plane.
 
-Span attributes (GenAI semantic conventions):
+**send_message span** attributes (GenAI semantic conventions):
 
 | Attribute | Value |
 |---|---|
@@ -188,6 +189,17 @@ Span attributes (GenAI semantic conventions):
 | `gen_ai.usage.input_tokens` | 0 (not available from PostToolUse hook) |
 | `gen_ai.usage.output_tokens` | 0 (not available from PostToolUse hook) |
 | `gen_ai.usage.cache_read.input_tokens` | 0 (not available from PostToolUse hook) |
+
+**Artifact span** attributes (Write/Edit/Bash):
+
+| Span name | Key attributes |
+|---|---|
+| `plugin.artifact.file_write` | `artifact.type`, `artifact.path` |
+| `plugin.artifact.file_edit` | `artifact.type`, `artifact.path` |
+| `plugin.artifact.git_commit` | `artifact.type`, `artifact.commit_hash`, `artifact.command` |
+| `plugin.artifact.pr_create` | `artifact.type`, `artifact.pr_url`, `artifact.command` |
+
+All spans include `msg_id` (join key) and `gen_ai.request.model`.
 
 ### Setup
 

@@ -1,5 +1,5 @@
 {
-  "description": "agent-hub plugin: auto-engage skill at session start + OTLP span emit after send_message",
+  "description": "agent-hub plugin: session-start engagement + send_message OTLP span + artifact spans (Write/Edit/Bash)",
   "hooks": {
     "SessionStart": [
       {
@@ -19,6 +19,33 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/agent-hub/scripts/emit_span.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/agent-hub/scripts/emit_artifact_span.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/agent-hub/scripts/emit_artifact_span.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/agent-hub/scripts/emit_artifact_span.py\""
           }
         ]
       }
