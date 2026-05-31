@@ -69,7 +69,7 @@ if [ -n "$PAT" ]; then
     elif [ -z "$_GH_HTTP_CODE" ] || [ "$_GH_HTTP_CODE" = "000" ]; then
       echo "[ERR $(date +%H:%M:%S)] could not reach GitHub API (network/proxy error?) — debug log: $_GH_WATCH_LOG"
     else
-      echo "[ERR $(date +%H:%M:%S)] failed to parse GitHub /user response (HTTP $_GH_HTTP_CODE) — debug log: $_GH_WATCH_LOG"
+      echo "[ERR $(date +%H:%M:%S)] GitHub API returned HTTP $_GH_HTTP_CODE (login unavailable) — debug log: $_GH_WATCH_LOG"
     fi
     exit 1
   fi
