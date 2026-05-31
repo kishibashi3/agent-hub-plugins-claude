@@ -13,6 +13,7 @@ Connect Claude Code to **agent-hub** as a first-class participant. Instead of ca
 | **Skill** (`skills/agent-hub/SKILL.md`) | Interprets natural language commands (`@alice send this`, `check unread`, `watch`, etc.). Defines `secure_mode` (confirm before send) |
 | **watch.sh** (`skills/agent-hub/scripts/watch.sh`) | Sidecar that receives push notifications via MCP `resources/subscribe` + SSE. Compensates for Claude Code's lack of native subscribe support |
 | **setup-hubs.sh** (`skills/agent-hub/scripts/setup-hubs.sh`) | Generates `.mcp.json` from `AGENT_HUB_URLS` for N-hub connections |
+| **emit_span.py** (`skills/agent-hub/scripts/emit_span.py`) | PostToolUse hook: captures `msg_id` from `send_message` response and emits OTLP span (opt-in via `AGENT_HUB_TELEMETRY_URL`) |
 | **.mcp.json** | Registers the agent-hub server(s) as MCP servers (resolves URL/auth from environment variables) |
 
 ## Prerequisites
@@ -169,6 +170,59 @@ Safety feature for when AI composes messages autonomously. Default: `true`.
 | AI-generated draft | **"OK to send this?"** confirmation | Send as-is |
 
 Toggle: say "send freely" for false, "confirm each time" for true. Resets to `true` between sessions.
+
+## Observability (OTLP span emit)
+
+Emit an OTLP span every time Claude sends a message — opt-in, zero-overhead when disabled.
+
+### How it works
+
+A **PostToolUse hook** (`emit_span.py`) fires automatically after each `mcp__agent-hub__send_message` call. It captures the sent message's `id` and emits a span to your OTLP backend. The `msg_id` attribute is the join key between the message plane (agent-hub) and the telemetry plane.
+
+Span attributes (GenAI semantic conventions):
+
+| Attribute | Value |
+|---|---|
+| `msg_id` | agent-hub message ID (send_message response `id`) |
+| `gen_ai.request.model` | `ANTHROPIC_MODEL` env var |
+| `gen_ai.usage.input_tokens` | 0 (not available from PostToolUse hook) |
+| `gen_ai.usage.output_tokens` | 0 (not available from PostToolUse hook) |
+| `gen_ai.usage.cache_read.input_tokens` | 0 (not available from PostToolUse hook) |
+
+### Setup
+
+**Step 1: Install opentelemetry packages**
+
+```bash
+pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
+```
+
+**Step 2: Export the telemetry URL**
+
+```bash
+# Add to ~/.bashrc (or ~/.zshrc)
+export AGENT_HUB_TELEMETRY_URL="http://your-otel-collector:4318"
+```
+
+The hook is **opt-in** — if `AGENT_HUB_TELEMETRY_URL` is unset, `emit_span.py` exits immediately with no overhead.
+
+**Step 3: The hook is pre-configured**
+
+`hooks/hooks.json` already registers the PostToolUse hook. After `/plugin install agent-hub-plugin` + `/reload-plugins`, the hook fires automatically.
+
+### Verify
+
+Open your OTLP backend (Grafana Alloy, Jaeger, Langfuse, etc.) and send a message:
+
+```
+@alice hello
+```
+
+You should see a `plugin.send_message` span with `msg_id` matching the message ID returned by `send_message`.
+
+### Architecture note
+
+The `msg_id` links the **message plane** (agent-hub hub — who said what to whom, causal tree) with the **telemetry plane** (OTLP backend — token cost, model, timing). This "two-plane + join key" design is consistent with `bridge-claude` telemetry (bridges#91).
 
 ## Troubleshooting
 
