@@ -290,6 +290,7 @@ def main() -> int:
     # ---- service.name 取得 (issue #26: bridges#96 と同パターン) ----
     # AGENT_HUB_USER が設定されていれば "@{handle}" を service.name に設定する。
     # 未設定時は "agent-hub-plugin" をフォールバックとして使用する。
+    # テレメトリ専用属性のため fail-fast ではなく fallback が許容される（欠落しても動作に影響しない）。
     handle = os.environ.get("AGENT_HUB_USER", "")
     service_name = f"@{handle}" if handle else "agent-hub-plugin"
 

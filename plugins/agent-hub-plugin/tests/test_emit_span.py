@@ -335,7 +335,7 @@ class TestMain(unittest.TestCase):
 
         assert result == 0
         mock_emit.assert_called_once_with(
-            "correct-id", "claude-sonnet-4-5", "http://otel:4318", "@planner"
+            "correct-id", "claude-sonnet-4-5", "http://otel:4318", service_name="@planner"
         )
 
     def test_service_name_defaults_when_user_not_set(self) -> None:
@@ -348,8 +348,7 @@ class TestMain(unittest.TestCase):
              patch.object(target, "emit_span") as mock_emit:
             target.main()
 
-        call_args = mock_emit.call_args[0]
-        assert call_args[3] == "agent-hub-plugin"
+        assert mock_emit.call_args.kwargs["service_name"] == "agent-hub-plugin"
 
     def test_model_defaults_to_unknown(self) -> None:
         """ANTHROPIC_MODEL 未設定時は 'unknown' が使われる。"""
