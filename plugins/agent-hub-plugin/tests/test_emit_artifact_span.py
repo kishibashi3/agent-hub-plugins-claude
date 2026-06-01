@@ -363,6 +363,7 @@ class TestEmitArtifactSpan(unittest.TestCase):
                 msg_id="test-msg-id",
                 model="claude-sonnet-4-5",
                 telemetry_url="http://otel:4318",
+                service_name="@test-plugin",
             )
 
         spans = in_memory_exporter.get_finished_spans()
@@ -396,6 +397,7 @@ class TestEmitArtifactSpan(unittest.TestCase):
                 msg_id="",
                 model="claude-sonnet-4-5",
                 telemetry_url="http://otel:4318",
+                service_name="@test-plugin",
             )
 
         spans = in_memory_exporter.get_finished_spans()
@@ -403,6 +405,33 @@ class TestEmitArtifactSpan(unittest.TestCase):
         assert spans[0].name == "plugin.artifact.git_commit"
         attrs = dict(spans[0].attributes or {})
         assert attrs["artifact.commit_hash"] == "abc1234"
+
+    def test_resource_service_name(self) -> None:
+        """emit_artifact_span() が TracerProvider に Resource(service.name) を設定することを確認する (issue #26)。
+
+        TracerProvider をパッチせず OTLPSpanExporter のみパッチすることで、
+        実際の Resource が span に反映されることを検証する。
+        """
+        from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+        in_memory_exporter = InMemorySpanExporter()
+
+        with patch(
+            "opentelemetry.exporter.otlp.proto.http.trace_exporter.OTLPSpanExporter",
+            return_value=in_memory_exporter,
+        ):
+            target.emit_artifact_span(
+                span_name="plugin.artifact.file_write",
+                attributes={"artifact.type": "file_write", "artifact.path": "/f.py"},
+                msg_id="msg",
+                model="model",
+                telemetry_url="http://otel:4318",
+                service_name="@reviewer",
+            )
+
+        spans = in_memory_exporter.get_finished_spans()
+        assert len(spans) == 1
+        assert spans[0].resource.attributes["service.name"] == "@reviewer"
 
 
 # ---------------------------------------------------------------------------
@@ -549,6 +578,31 @@ class TestMain(unittest.TestCase):
             target.main()
 
         assert mock_emit.call_args[1]["model"] == "unknown"
+
+    def test_service_name_from_agent_hub_user(self) -> None:
+        """AGENT_HUB_USER が設定されていれば service_name が "@{handle}" になる (issue #26)。"""
+        payload = _write_payload("/f.py")
+        with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+             patch.dict(os.environ, {
+                 "AGENT_HUB_TELEMETRY_URL": "http://otel:4318",
+                 "AGENT_HUB_USER": "reviewer",
+             }), \
+             patch.object(target, "emit_artifact_span") as mock_emit:
+            target.main()
+
+        assert mock_emit.call_args[1]["service_name"] == "@reviewer"
+
+    def test_service_name_defaults_when_user_not_set(self) -> None:
+        """AGENT_HUB_USER 未設定時は service_name が "agent-hub-plugin" になる (issue #26)。"""
+        payload = _write_payload("/f.py")
+        env = {k: v for k, v in os.environ.items() if k not in ("AGENT_HUB_USER",)}
+        env["AGENT_HUB_TELEMETRY_URL"] = "http://otel:4318"
+        with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+             patch.dict(os.environ, env, clear=True), \
+             patch.object(target, "emit_artifact_span") as mock_emit:
+            target.main()
+
+        assert mock_emit.call_args[1]["service_name"] == "agent-hub-plugin"
 
 
 if __name__ == "__main__":

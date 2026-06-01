@@ -213,7 +213,7 @@ class TestEmitSpan(unittest.TestCase):
             return_value=test_provider,
         ):
             # emit_span() 本体を呼ぶ — span 属性が正しく設定されることを検証
-            target.emit_span("test-msg-id", "claude-sonnet-4-5", "http://otel:4318")
+            target.emit_span("test-msg-id", "claude-sonnet-4-5", "http://otel:4318", "@test-plugin")
 
         spans = in_memory_exporter.get_finished_spans()
         assert len(spans) == 1
@@ -224,6 +224,26 @@ class TestEmitSpan(unittest.TestCase):
         assert attrs["gen_ai.usage.input_tokens"] == 0
         assert attrs["gen_ai.usage.output_tokens"] == 0
         assert attrs["gen_ai.usage.cache_read.input_tokens"] == 0
+
+    def test_resource_service_name(self) -> None:
+        """emit_span() が TracerProvider に Resource(service.name) を設定することを確認する (issue #26)。
+
+        TracerProvider をパッチせず OTLPSpanExporter のみパッチすることで、
+        実際の Resource が span に反映されることを検証する。
+        """
+        from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+        in_memory_exporter = InMemorySpanExporter()
+
+        with patch(
+            "opentelemetry.exporter.otlp.proto.http.trace_exporter.OTLPSpanExporter",
+            return_value=in_memory_exporter,
+        ):
+            target.emit_span("msg-id", "model", "http://otel:4318", "@planner")
+
+        spans = in_memory_exporter.get_finished_spans()
+        assert len(spans) == 1
+        assert spans[0].resource.attributes["service.name"] == "@planner"
 
     def test_span_attribute_names_use_dot_separator(self) -> None:
         """span 属性名がドット区切りであることを確認する（アンダースコア不可）。"""
@@ -299,7 +319,7 @@ class TestMain(unittest.TestCase):
 
     @unittest.skipUnless(_has_opentelemetry(), "opentelemetry not installed")
     def test_emit_called_with_correct_args(self) -> None:
-        """msg_id と model が正しく emit_span に渡されることを確認する。"""
+        """msg_id / model / service_name が正しく emit_span に渡されることを確認する。"""
         payload = _mcp_payload("correct-id")
         with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
              patch.dict(
@@ -307,6 +327,7 @@ class TestMain(unittest.TestCase):
                  {
                      "AGENT_HUB_TELEMETRY_URL": "http://otel:4318",
                      "ANTHROPIC_MODEL": "claude-sonnet-4-5",
+                     "AGENT_HUB_USER": "planner",
                  },
              ), \
              patch.object(target, "emit_span") as mock_emit:
@@ -314,8 +335,20 @@ class TestMain(unittest.TestCase):
 
         assert result == 0
         mock_emit.assert_called_once_with(
-            "correct-id", "claude-sonnet-4-5", "http://otel:4318"
+            "correct-id", "claude-sonnet-4-5", "http://otel:4318", service_name="@planner"
         )
+
+    def test_service_name_defaults_when_user_not_set(self) -> None:
+        """AGENT_HUB_USER 未設定時は service_name が "agent-hub-plugin" になる (issue #26)。"""
+        payload = _mcp_payload("id-no-user")
+        env = {k: v for k, v in os.environ.items() if k not in ("AGENT_HUB_USER",)}
+        env["AGENT_HUB_TELEMETRY_URL"] = "http://otel:4318"
+        with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+             patch.dict(os.environ, env, clear=True), \
+             patch.object(target, "emit_span") as mock_emit:
+            target.main()
+
+        assert mock_emit.call_args.kwargs["service_name"] == "agent-hub-plugin"
 
     def test_model_defaults_to_unknown(self) -> None:
         """ANTHROPIC_MODEL 未設定時は 'unknown' が使われる。"""

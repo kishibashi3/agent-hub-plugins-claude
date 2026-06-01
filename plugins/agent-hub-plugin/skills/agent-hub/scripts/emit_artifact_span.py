@@ -205,6 +205,7 @@ def emit_artifact_span(
     msg_id: str,
     model: str,
     telemetry_url: str,
+    service_name: str,
 ) -> None:
     """artifact OTLP span を emit する (issue #28).
 
@@ -219,19 +220,24 @@ def emit_artifact_span(
         msg_id:        join key（空文字の場合は属性として空文字を設定）。
         model:         ANTHROPIC_MODEL 環境変数の値。
         telemetry_url: OTLP エンドポイント URL (``/v1/traces`` を自動付与)。
+        service_name:  OTel ``service.name`` リソース属性 (例: "@planner")。
+                       ``AGENT_HUB_USER`` 環境変数から ``f"@{handle}"`` で設定する (issue #26)。
 
     Raises:
         ImportError: opentelemetry パッケージが未インストール。
         Exception:   その他エラー（呼び出し元が握り潰す）。
     """
     from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor
     from opentelemetry.trace import StatusCode
 
     endpoint = telemetry_url.rstrip("/") + "/v1/traces"
     exporter = OTLPSpanExporter(endpoint=endpoint)
-    provider = TracerProvider()
+    # issue #26: service.name を @handle 名に設定する (Resource 経由; bridges#96 と同パターン)
+    resource = Resource({"service.name": service_name})
+    provider = TracerProvider(resource=resource)
     # hook は短命プロセス: SimpleSpanProcessor で span 終了時に即エクスポート
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     # グローバル TracerProvider を書き換えずに tracer を取得 (テスタビリティ向上)
@@ -281,6 +287,13 @@ def main() -> int:
     # 未設定時は 'unknown' を gen_ai.request.model telemetry label として使用する。
     model = os.environ.get("ANTHROPIC_MODEL", "unknown")
 
+    # ---- service.name 取得 (issue #26: bridges#96 と同パターン) ----
+    # AGENT_HUB_USER が設定されていれば "@{handle}" を service.name に設定する。
+    # 未設定時は "agent-hub-plugin" をフォールバックとして使用する。
+    # テレメトリ専用属性のため fail-fast ではなく fallback が許容される（欠落しても動作に影響しない）。
+    handle = os.environ.get("AGENT_HUB_USER", "")
+    service_name = f"@{handle}" if handle else "agent-hub-plugin"
+
     # ---- span emit ----
     try:
         emit_artifact_span(
@@ -289,6 +302,7 @@ def main() -> int:
             msg_id=msg_id,
             model=model,
             telemetry_url=telemetry_url,
+            service_name=service_name,
         )
     except ImportError:
         # opentelemetry 未インストール → サイレント skip
