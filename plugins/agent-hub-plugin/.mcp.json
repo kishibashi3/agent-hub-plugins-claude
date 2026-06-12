@@ -4,7 +4,7 @@
     "url": "${AGENT_HUB_URL}",
     "headers": {
       "Authorization": "Bearer ${GITHUB_PAT}",
-      "X-User-Id": "${AGENT_HUB_USER:-}",
+      "X-Participant-Id": "${AGENT_HUB_PARTICIPANT:-${AGENT_HUB_USER:-}}",
       "X-Tenant-Id": "${AGENT_HUB_TENANT:-}"
     }
   },
@@ -13,7 +13,7 @@
     "url": "${AGENT_HUB_URL_2:-}",
     "headers": {
       "Authorization": "Bearer ${GITHUB_PAT_2:-${GITHUB_PAT}}",
-      "X-User-Id": "${AGENT_HUB_USER_2:-${AGENT_HUB_USER:-}}",
+      "X-Participant-Id": "${AGENT_HUB_PARTICIPANT_2:-${AGENT_HUB_PARTICIPANT:-${AGENT_HUB_USER_2:-${AGENT_HUB_USER:-}}}}",
       "X-Tenant-Id": "${AGENT_HUB_TENANT_2:-}"
     }
   }
