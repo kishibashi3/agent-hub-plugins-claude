@@ -233,15 +233,26 @@ _watch_hub() {
       echo "[$label subscribed $(date +%H:%M:%S)] inbox://@$USER_ID — waiting for pushes..." >&2
     fi
 
-    # 4) GET /mcp で long-lived SSE。notifications/resources/updated だけ拾う。
+    # 4) GET /mcp で long-lived SSE。notifications/resources/updated を拾い、ping には pong を返す。
     # awk を使用: grep --line-buffered は GNU grep 専用で macOS BSD grep 非対応のため portable awk に置換
     curl -sN -X GET "$hub_url" \
       "${AUTH_HEADERS[@]}" \
       -H "mcp-session-id: $sid" \
       -H "Accept: text/event-stream" 2>/dev/null \
-      | awk '/"method":"notifications\/resources\/updated"/ { print; fflush() }' \
+      | awk '/"method":"notifications\/resources\/updated"/ || /"method":"ping"/ { print; fflush() }' \
       | while IFS= read -r line; do
-          echo "[$label NEW $(date +%H:%M:%S)] $line"
+          if printf '%s' "$line" | grep -q '"method":"ping"'; then
+            # サーバー ping に pong を返してセッション（is_online）を維持する
+            _ping_id=$(printf '%s' "$line" | sed -nE 's/.*"id"[[:space:]]*:[[:space:]]*([0-9]+|"[^"]*").*/\1/p')
+            [ -n "$_ping_id" ] && curl -s --max-time 5 -X POST "$hub_url" \
+              "${AUTH_HEADERS[@]}" \
+              -H "mcp-session-id: $sid" \
+              -H "Content-Type: application/json" \
+              -H "Accept: application/json, text/event-stream" \
+              -d "{\"jsonrpc\":\"2.0\",\"id\":$_ping_id,\"result\":{}}" > /dev/null 2>&1 &
+          else
+            echo "[$label NEW $(date +%H:%M:%S)] $line"
+          fi
         done
 
     # 5) ストリーム切断時は再接続（reconnect ログは stderr で静音化）
