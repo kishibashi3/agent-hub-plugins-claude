@@ -6,30 +6,32 @@
 #   GITHUB_PAT=ghp_xxx... bash .claude/skills/agent-hub/scripts/watch.sh
 #
 #   # PAT モード + ペルソナ override（同じ owner で別ハンドルを名乗る）
-#   GITHUB_PAT=ghp_xxx... AGENT_HUB_USER=alice bash .claude/skills/agent-hub/scripts/watch.sh
+#   GITHUB_PAT=ghp_xxx... AGENT_HUB_PARTICIPANT=alice bash .claude/skills/agent-hub/scripts/watch.sh
 #
 #   # Trust モード（localhost のみ。サーバー側 AUTH_MODE=trust）
-#   AGENT_HUB_USER=alice bash .claude/skills/agent-hub/scripts/watch.sh
+#   AGENT_HUB_PARTICIPANT=alice bash .claude/skills/agent-hub/scripts/watch.sh
 #
 #   # マルチハブ（複数ハブを同時監視）
 #   AGENT_HUB_URLS="http://hub1:3000/mcp http://hub2:3000/mcp" \
 #   GITHUB_PAT=ghp_xxx... bash .claude/skills/agent-hub/scripts/watch.sh
 #
 # 認証モードは agent-hub サーバー側の AUTH_MODE に合わせる:
-#   - サーバー pat → GITHUB_PAT を設定（推奨）。AGENT_HUB_USER も併設すれば handle override
-#   - サーバー trust（localhost 互換）→ AGENT_HUB_USER のみ
+#   - サーバー pat → GITHUB_PAT を設定（推奨）。AGENT_HUB_PARTICIPANT も併設すれば handle override
+#   - サーバー trust（localhost 互換）→ AGENT_HUB_PARTICIPANT のみ
 #
 # 環境変数:
-#   GITHUB_PAT         GitHub Personal Access Token（read:user scope）。pat モード用
-#   AGENT_HUB_USER     handle 名 (trust モードでは識別、pat モードでは GitHub login を override)
-#   AGENT_HUB_URL      MCP エンドポイント（単一ハブ）。未設定なら http://localhost:3000/mcp
-#   AGENT_HUB_URLS     MCP エンドポイント一覧（スペースまたはカンマ区切り）。設定時は AGENT_HUB_URL より優先
-#   AGENT_HUB_TENANT   tenant 識別子 (CE 接続時)。未設定なら default tenant
+#   GITHUB_PAT              GitHub Personal Access Token（read:user scope）。pat モード用
+#   AGENT_HUB_PARTICIPANT   handle 名 (trust モードでは識別、pat モードでは GitHub login を override)
+#   AGENT_HUB_USER          AGENT_HUB_PARTICIPANT の deprecated alias (後方互換 fallback)
+#   AGENT_HUB_URL           MCP エンドポイント（単一ハブ）。未設定なら http://localhost:3000/mcp
+#   AGENT_HUB_URLS          MCP エンドポイント一覧（スペースまたはカンマ区切り）。設定時は AGENT_HUB_URL より優先
+#   AGENT_HUB_TENANT        tenant 識別子 (CE 接続時)。未設定なら default tenant
 
 set -u
 
 PAT="${GITHUB_PAT:-}"
-HANDLE_OVERRIDE="${AGENT_HUB_USER:-}"
+# AGENT_HUB_PARTICIPANT preferred; AGENT_HUB_USER is a deprecated fallback (triggers server-side [auth] DEPRECATED: warning)
+HANDLE_OVERRIDE="${AGENT_HUB_PARTICIPANT:-${AGENT_HUB_USER:-}}"
 TENANT="${AGENT_HUB_TENANT:-}"
 
 # HUBS 配列を組み立て:
@@ -75,9 +77,9 @@ if [ -n "$PAT" ]; then
   fi
   AUTH_HEADERS+=(-H "Authorization: Bearer $PAT")
   if [ -n "$HANDLE_OVERRIDE" ]; then
-    # PAT で本人認証 + X-User-Id でハンドル override（マルチペルソナ）
+    # PAT で本人認証 + X-Participant-Id でハンドル override（マルチペルソナ）
     USER_ID="$HANDLE_OVERRIDE"
-    AUTH_HEADERS+=(-H "X-User-Id: $USER_ID")
+    AUTH_HEADERS+=(-H "X-Participant-Id: $USER_ID")
     AUTH_MODE_LABEL="pat+override(owner=$GITHUB_LOGIN)"
   else
     # 素の pat モード: GitHub login をそのままハンドルにする
@@ -85,12 +87,12 @@ if [ -n "$PAT" ]; then
     AUTH_MODE_LABEL="pat"
   fi
 elif [ -n "$HANDLE_OVERRIDE" ]; then
-  # trust モード: X-User-Id を無検証で信じる（localhost 専用）
+  # trust モード: X-Participant-Id を無検証で信じる（localhost 専用）
   USER_ID="$HANDLE_OVERRIDE"
-  AUTH_HEADERS+=(-H "X-User-Id: $USER_ID")
+  AUTH_HEADERS+=(-H "X-Participant-Id: $USER_ID")
   AUTH_MODE_LABEL="trust"
 else
-  echo "[ERR $(date +%H:%M:%S)] Set GITHUB_PAT (pat mode) or AGENT_HUB_USER (trust mode)"
+  echo "[ERR $(date +%H:%M:%S)] Set GITHUB_PAT (pat mode) or AGENT_HUB_PARTICIPANT (trust mode)"
   exit 1
 fi
 

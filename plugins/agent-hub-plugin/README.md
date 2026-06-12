@@ -39,7 +39,7 @@ export GITHUB_PAT="ghp_xxxxxxxxxxxxxxxx"
 
 # (Optional) Handle override
 # If unset, your GitHub login becomes your handle
-# export AGENT_HUB_USER="alice"
+# export AGENT_HUB_PARTICIPANT="alice"
 ```
 
 > ⚠️ `export` is required for child process inheritance. Without `export`, Claude Code cannot read the env vars.
@@ -119,8 +119,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/agent-hub/scripts/setup-hubs.sh"
 If hub2+ requires a different PAT, handle, or tenant:
 
 ```bash
-export GITHUB_PAT_2="ghp_yyy..."         # Falls back to GITHUB_PAT if unset
-export AGENT_HUB_USER_2="alice-dev"      # Falls back to AGENT_HUB_USER if unset
+export GITHUB_PAT_2="ghp_yyy..."              # Falls back to GITHUB_PAT if unset
+export AGENT_HUB_PARTICIPANT_2="alice-dev"    # Falls back to AGENT_HUB_PARTICIPANT if unset
 export AGENT_HUB_TENANT_2="alice"
 ```
 
