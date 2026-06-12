@@ -593,9 +593,12 @@ class TestMain(unittest.TestCase):
         assert mock_emit.call_args[1]["service_name"] == "@reviewer"
 
     def test_service_name_defaults_when_user_not_set(self) -> None:
-        """AGENT_HUB_USER 未設定時は service_name が "agent-hub-plugin" になる (issue #26)。"""
+        """AGENT_HUB_PARTICIPANT / AGENT_HUB_USER 未設定時は service_name が "agent-hub-plugin" になる (issue #26)。"""
         payload = _write_payload("/f.py")
-        env = {k: v for k, v in os.environ.items() if k not in ("AGENT_HUB_USER",)}
+        env = {
+            k: v for k, v in os.environ.items()
+            if k not in ("AGENT_HUB_PARTICIPANT", "AGENT_HUB_USER")
+        }
         env["AGENT_HUB_TELEMETRY_URL"] = "http://otel:4318"
         with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
              patch.dict(os.environ, env, clear=True), \
@@ -603,6 +606,20 @@ class TestMain(unittest.TestCase):
             target.main()
 
         assert mock_emit.call_args[1]["service_name"] == "agent-hub-plugin"
+
+    def test_service_name_prefers_participant_over_deprecated_user(self) -> None:
+        """AGENT_HUB_PARTICIPANT が AGENT_HUB_USER (deprecated alias) より優先される。"""
+        payload = _write_payload("/f.py")
+        with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
+             patch.dict(os.environ, {
+                 "AGENT_HUB_TELEMETRY_URL": "http://otel:4318",
+                 "AGENT_HUB_PARTICIPANT": "reviewer",
+                 "AGENT_HUB_USER": "old-handle",
+             }), \
+             patch.object(target, "emit_artifact_span") as mock_emit:
+            target.main()
+
+        assert mock_emit.call_args[1]["service_name"] == "@reviewer"
 
 
 if __name__ == "__main__":
