@@ -112,6 +112,26 @@ if [ -z "$TENANT" ]; then
   echo "[WARN $(date +%H:%M:%S)]   Otherwise (= default tenant 雑談室で運用 / Private Edition), 無視して OK。"
 fi
 
+# 多重起動防止: 同一 USER_ID + TENANT の pidfile が存在する場合、既存プロセスを停止してから起動する
+PIDFILE="/tmp/agent-hub-watch-${USER_ID}-${TENANT:-default}.pid"
+if [ -f "$PIDFILE" ]; then
+  _old_pid=$(cat "$PIDFILE" 2>/dev/null)
+  if [ -n "$_old_pid" ] && kill -0 "$_old_pid" 2>/dev/null; then
+    echo "[boot $(date +%H:%M:%S)] existing watch.sh (PID $_old_pid) found — stopping it"
+    kill "$_old_pid" 2>/dev/null
+    _wait=0
+    while kill -0 "$_old_pid" 2>/dev/null && [ "$_wait" -lt 30 ]; do
+      sleep 0.1
+      _wait=$((_wait + 1))
+    done
+    if kill -0 "$_old_pid" 2>/dev/null; then
+      echo "[boot $(date +%H:%M:%S)] PID $_old_pid did not stop — sending SIGKILL"
+      kill -9 "$_old_pid" 2>/dev/null
+    fi
+  fi
+fi
+echo "$$" > "$PIDFILE"
+
 # ---------------------------------------------------------------------------
 # ハブ接続ループ（ハブごとに呼ばれる）
 #
@@ -253,7 +273,8 @@ _watch_hub() {
 }
 
 # SIGINT/SIGTERM 受信時に全バックグラウンドジョブを終了してから exit
-trap 'kill $(jobs -p) 2>/dev/null; exit 130' INT TERM
+trap 'kill $(jobs -p) 2>/dev/null; rm -f "$PIDFILE"; exit 130' INT TERM
+trap 'rm -f "$PIDFILE"' EXIT
 
 # ハブごとにバックグラウンドで接続ループを起動
 for _i in "${!HUBS[@]}"; do
