@@ -131,6 +131,7 @@ if [ -f "$PIDFILE" ]; then
   fi
 fi
 echo "$$" > "$PIDFILE"
+trap 'rm -f "$PIDFILE"' EXIT
 
 # ---------------------------------------------------------------------------
 # ハブ接続ループ（ハブごとに呼ばれる）
@@ -274,7 +275,6 @@ _watch_hub() {
 
 # SIGINT/SIGTERM 受信時に全バックグラウンドジョブを終了してから exit
 trap 'kill $(jobs -p) 2>/dev/null; rm -f "$PIDFILE"; exit 130' INT TERM
-trap 'rm -f "$PIDFILE"' EXIT
 
 # ハブごとにバックグラウンドで接続ループを起動
 for _i in "${!HUBS[@]}"; do
