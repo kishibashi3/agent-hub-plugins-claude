@@ -221,7 +221,7 @@ def emit_artifact_span(
         model:         ANTHROPIC_MODEL 環境変数の値。
         telemetry_url: OTLP エンドポイント URL (``/v1/traces`` を自動付与)。
         service_name:  OTel ``service.name`` リソース属性 (例: "@planner")。
-                       ``AGENT_HUB_USER`` 環境変数から ``f"@{handle}"`` で設定する (issue #26)。
+                       ``AGENT_HUB_PARTICIPANT`` 環境変数 (deprecated alias の ``AGENT_HUB_USER`` も fallback) から ``f"@{handle}"`` で設定する (issue #26)。
 
     Raises:
         ImportError: opentelemetry パッケージが未インストール。
@@ -288,10 +288,11 @@ def main() -> int:
     model = os.environ.get("ANTHROPIC_MODEL", "unknown")
 
     # ---- service.name 取得 (issue #26: bridges#96 と同パターン) ----
-    # AGENT_HUB_USER が設定されていれば "@{handle}" を service.name に設定する。
+    # AGENT_HUB_PARTICIPANT が設定されていれば "@{handle}" を service.name に設定する。
+    # AGENT_HUB_USER は deprecated alias として後方互換で読む (scheduler.py:116 と同形式)。
     # 未設定時は "agent-hub-plugin" をフォールバックとして使用する。
     # テレメトリ専用属性のため fail-fast ではなく fallback が許容される（欠落しても動作に影響しない）。
-    handle = os.environ.get("AGENT_HUB_USER", "")
+    handle = os.environ.get("AGENT_HUB_PARTICIPANT") or os.environ.get("AGENT_HUB_USER", "")
     service_name = f"@{handle}" if handle else "agent-hub-plugin"
 
     # ---- span emit ----

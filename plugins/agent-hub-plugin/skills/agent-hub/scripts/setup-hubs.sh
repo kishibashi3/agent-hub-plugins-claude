@@ -12,11 +12,12 @@
 # 認証環境変数（Claude Code 起動時に export して使う）:
 #   Hub 1 (primary):
 #     GITHUB_PAT            必須 (pat モード)
-#     AGENT_HUB_USER        任意 (handle override。省略時は GitHub login をハンドルとして使用)
+#     AGENT_HUB_PARTICIPANT 任意 (handle override。省略時は GitHub login をハンドルとして使用)
+#                           ※ deprecated alias の AGENT_HUB_USER も後方互換で読む
 #     AGENT_HUB_TENANT      任意 (CE の named tenant。省略時は default tenant)
 #   Hub N (N>=2):
 #     GITHUB_PAT_N          任意 (省略時は GITHUB_PAT を流用)
-#     AGENT_HUB_USER_N      任意 (省略時は AGENT_HUB_USER を流用)
+#     AGENT_HUB_PARTICIPANT_N 任意 (省略時は AGENT_HUB_PARTICIPANT を流用。deprecated alias AGENT_HUB_USER_N も読む)
 #     AGENT_HUB_TENANT_N    任意 (省略時は空 = default tenant)
 #
 # 生成例 (2 hub):
@@ -89,12 +90,13 @@ echo "[setup-hubs] $HUB_COUNT hub(s) を検出。$MCP_JSON を生成中..."
     if [ "$i" -eq 0 ]; then
       _name="agent-hub"
       _pat='${GITHUB_PAT}'
-      _user='${AGENT_HUB_USER:-}'
+      # AGENT_HUB_PARTICIPANT を優先し、deprecated alias の AGENT_HUB_USER に fallback する
+      _user='${AGENT_HUB_PARTICIPANT:-${AGENT_HUB_USER:-}}'
       _tenant='${AGENT_HUB_TENANT:-}'
     else
       _name="agent-hub-${n}"
       _pat="\${GITHUB_PAT_${n}:-\${GITHUB_PAT}}"
-      _user="\${AGENT_HUB_USER_${n}:-\${AGENT_HUB_USER:-}}"
+      _user="\${AGENT_HUB_PARTICIPANT_${n}:-\${AGENT_HUB_PARTICIPANT:-\${AGENT_HUB_USER_${n}:-\${AGENT_HUB_USER:-}}}}"
       _tenant="\${AGENT_HUB_TENANT_${n}:-}"
     fi
 
@@ -110,7 +112,7 @@ echo "[setup-hubs] $HUB_COUNT hub(s) を検出。$MCP_JSON を生成中..."
     printf '    "url": "%s",\n' "$_escaped_url"
     printf '    "headers": {\n'
     printf '      "Authorization": "Bearer %s",\n' "$_pat"
-    printf '      "X-User-Id": "%s",\n' "$_user"
+    printf '      "X-Participant-Id": "%s",\n' "$_user"
     printf '      "X-Tenant-Id": "%s"\n' "$_tenant"
     printf '    }\n'
     printf '  }'
