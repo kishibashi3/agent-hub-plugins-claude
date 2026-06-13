@@ -112,26 +112,32 @@ if [ -z "$TENANT" ]; then
   echo "[WARN $(date +%H:%M:%S)]   Otherwise (= default tenant 雑談室で運用 / Private Edition), 無視して OK。"
 fi
 
-# 多重起動防止: 同一 USER_ID + TENANT の pidfile が存在する場合、既存プロセスを停止してから起動する
-PIDFILE="/tmp/agent-hub-watch-${USER_ID}-${TENANT:-default}.pid"
-if [ -f "$PIDFILE" ]; then
-  _old_pid=$(cat "$PIDFILE" 2>/dev/null)
-  if [ -n "$_old_pid" ] && kill -0 "$_old_pid" 2>/dev/null; then
-    echo "[boot $(date +%H:%M:%S)] existing watch.sh (PID $_old_pid) found — stopping it"
-    kill "$_old_pid" 2>/dev/null
-    _wait=0
-    while kill -0 "$_old_pid" 2>/dev/null && [ "$_wait" -lt 30 ]; do
-      sleep 0.1
-      _wait=$((_wait + 1))
-    done
-    if kill -0 "$_old_pid" 2>/dev/null; then
-      echo "[boot $(date +%H:%M:%S)] PID $_old_pid did not stop — sending SIGKILL"
-      kill -9 "$_old_pid" 2>/dev/null
-    fi
+# 多重起動防止 (issue #39): 同一 USER_ID + TENANT の watch.sh を flock で「同時 1 個」に制限する。
+#
+# なぜ flock か (旧 pidfile 方式 = PR #36 の撤去理由):
+#   pidfile 方式は「pidfile に記録された 1 個だけ」を boot 時に kill する方式だった。
+#   これは pidfile に載らない孤児プロセス (クラッシュ / セッション跨ぎで init に reparent /
+#   ほぼ同時 boot のレースで全員が「既存なし」と誤判定) を一切掃除できず、実機で 68 個累積した。
+#   flock はカーネルのアドバイザリロックで、ロックを保持したプロセス (とその fd を継承した
+#   子プロセス) が全て終了すると OS が自動解放する。よって kill -9・クラッシュ・セッション
+#   跨ぎでも孤児がロックを握り続ける = 後発は起動できない → 累積しない。レースも flock が解決する。
+#
+# 方針: 先着 1 個がロックを保持し続け、後発は即 exit して退避する (= "後発が退避")。
+#   Monitor からの respawn は stop→spawn の stop で既存が終了しロックが解放されるため、
+#   通常運用では新しい方が問題なく引き継げる。
+LOCKFILE="/tmp/agent-hub-watch-${USER_ID}-${TENANT:-default}.lock"
+if command -v flock >/dev/null 2>&1 && exec 9>"$LOCKFILE"; then
+  if ! flock -n 9; then
+    echo "[boot $(date +%H:%M:%S)] another watch.sh already holds the lock for ${USER_ID}+${TENANT:-default} — exiting (single-instance enforced)"
+    exit 0
   fi
+  # ロック保持のまま本体へ。fd 9 はプロセス終了 (子プロセス含む) で自動 close → OS がロック解放。
+  echo "[boot $(date +%H:%M:%S)] single-instance lock acquired: $LOCKFILE"
+else
+  # flock 非搭載 (例: macOS は util-linux 同梱でないため flock(1) が無い) / lock ファイルを開けない
+  # 場合は単一インスタンス保証を諦めて起動する (hard-fail せず機能は維持する)。
+  echo "[WARN $(date +%H:%M:%S)] flock unavailable or $LOCKFILE not writable — single-instance guard DISABLED (multiple watch.sh may accumulate). Install util-linux (flock) on Linux to enable."
 fi
-echo "$$" > "$PIDFILE"
-trap 'rm -f "$PIDFILE"' EXIT
 
 # ---------------------------------------------------------------------------
 # ハブ接続ループ（ハブごとに呼ばれる）
@@ -285,7 +291,8 @@ _watch_hub() {
 }
 
 # SIGINT/SIGTERM 受信時に全バックグラウンドジョブを終了してから exit
-trap 'kill $(jobs -p) 2>/dev/null; rm -f "$PIDFILE"; exit 130' INT TERM
+# (flock のロックは fd 9 の close = プロセス終了で OS が自動解放するため明示解放は不要)
+trap 'kill $(jobs -p) 2>/dev/null; exit 130' INT TERM
 
 # ハブごとにバックグラウンドで接続ループを起動
 for _i in "${!HUBS[@]}"; do
