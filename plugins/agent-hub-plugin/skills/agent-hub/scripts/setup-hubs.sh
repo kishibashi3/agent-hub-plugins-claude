@@ -18,7 +18,7 @@
 #   Hub N (N>=2):
 #     GITHUB_PAT_N          hub N を使うなら必須 (省略時は空 = 401。GITHUB_PAT への fallback は無い。
 #                           同じ PAT を使う場合も GITHUB_PAT_N="$GITHUB_PAT" と明示する)
-#     AGENT_HUB_PARTICIPANT_N 任意 (省略時は AGENT_HUB_PARTICIPANT を流用。deprecated alias AGENT_HUB_USER_N も読む)
+#     AGENT_HUB_PARTICIPANT_N 任意 (省略時は空 = GitHub login をハンドルとして使用。AGENT_HUB_PARTICIPANT への fallback は無い)
 #     AGENT_HUB_TENANT_N    任意 (省略時は空 = default tenant)
 #
 # 生成例 (2 hub):
