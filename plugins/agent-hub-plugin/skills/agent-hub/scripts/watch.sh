@@ -119,7 +119,7 @@ fi
 #   これは pidfile に載らない孤児プロセス (クラッシュ / セッション跨ぎで init に reparent /
 #   ほぼ同時 boot のレースで全員が「既存なし」と誤判定) を一切掃除できず、実機で 68 個累積した。
 #   flock はカーネルのアドバイザリロックで、ロックを保持したプロセスが終了すると OS が自動解放する。
-#   ロックは本プロセスだけが持つ (子には fd 9 を継承させない。issue #50)。本プロセスが生きている間は
+#   ロックは本プロセスだけが持つ (子には LOCK_FD を継承させない。issue #50)。本プロセスが生きている間は
 #   後発は起動できない → 累積しない。レースも flock が解決する。本プロセスが kill -9 等で死んだ場合は
 #   ロックが即解放され、残った子は watchdog が終了させる (末尾参照)。
 #
@@ -127,17 +127,30 @@ fi
 #   Monitor からの respawn は stop→spawn の stop で既存が終了しロックが解放されるため、
 #   通常運用では新しい方が問題なく引き継げる。
 LOCKFILE="/tmp/agent-hub-watch-${USER_ID}-${TENANT:-default}.lock"
-if command -v flock >/dev/null 2>&1 && exec 9>"$LOCKFILE"; then
-  if ! flock -n 9; then
+# ロックを保持する fd 番号。本プロセスだけが持ち、子プロセスには継承させない (issue #50)。
+# bash 3.2 (macOS) は fd 番号に変数を書けず {var}> も使えないため、開閉は eval 経由で行う。
+LOCK_FD=9
+# 子プロセス側の先頭で呼び、継承した LOCK_FD を閉じる (fd を開いていなくても無害)。
+_close_lock_fd() {
+  eval "exec ${LOCK_FD}>&-"
+}
+if command -v flock >/dev/null 2>&1 && eval "exec ${LOCK_FD}>\"\$LOCKFILE\""; then
+  if ! flock -n "$LOCK_FD"; then
     echo "[boot $(date +%H:%M:%S)] another watch.sh already holds the lock for ${USER_ID}+${TENANT:-default} — exiting (single-instance enforced)"
     exit 0
   fi
-  # ロック保持のまま本体へ。fd 9 は本プロセスの終了で自動 close → OS がロック解放。
+  # ロック保持のまま本体へ。LOCK_FD は本プロセスの終了で自動 close → OS がロック解放。
   echo "[boot $(date +%H:%M:%S)] single-instance lock acquired: $LOCKFILE"
 else
   # flock 非搭載 (例: macOS は util-linux 同梱でないため flock(1) が無い) / lock ファイルを開けない
   # 場合は単一インスタンス保証を諦めて起動する (hard-fail せず機能は維持する)。
   echo "[WARN $(date +%H:%M:%S)] flock unavailable or $LOCKFILE not writable — single-instance guard DISABLED (multiple watch.sh may accumulate). Install util-linux (flock) on Linux to enable."
+fi
+
+# 終了時の子孫プロセス回収 (_kill_tree) は pgrep に依存する。無いと接続ループの最上位しか終了できず、
+# 残った子が ping に pong を返し続けて hub 上にセッションが残るため、boot 時に WARN を出す。
+if ! command -v pgrep >/dev/null 2>&1; then
+  echo "[WARN $(date +%H:%M:%S)] pgrep unavailable — child processes (curl / awk) may be left behind on exit. Install procps to enable full cleanup."
 fi
 
 # ---------------------------------------------------------------------------
@@ -318,12 +331,12 @@ _WATCHDOG_PID=
 trap '_kill_tree ${_WATCHDOG_PID:+"$_WATCHDOG_PID"} "${_HUB_PIDS[@]}"; exit 130' INT TERM
 
 # ハブごとにバックグラウンドで接続ループを起動。
-# 9>&-: ロック fd 9 を子プロセス (subshell / curl / awk / sleep) に継承させない (issue #50)。
+# _close_lock_fd: ロック fd (LOCK_FD) を子プロセス (subshell / curl / awk / sleep) に継承させない (issue #50)。
 #   継承させると、本プロセスだけが kill -9 されたときに孤児の子がロックを持ち続け、
 #   再起動した watch.sh が「another watch.sh already holds the lock」で退避して push を取りこぼす。
 #   ロックを持つのは本プロセスだけにする。
 for _i in "${!HUBS[@]}"; do
-  _watch_hub "${HUBS[$_i]}" "hub$((_i+1))" 9>&- &
+  { _close_lock_fd; _watch_hub "${HUBS[$_i]}" "hub$((_i+1))"; } &
   _HUB_PIDS+=($!)
 done
 
@@ -340,11 +353,12 @@ _all_alive() {
   done
 }
 (
+  _close_lock_fd
   while _all_alive; do
     sleep 2
   done
   _kill_tree "${_HUB_PIDS[@]}"
-) 9>&- >/dev/null 2>&1 &
+) >/dev/null 2>&1 &
 _WATCHDOG_PID=$!
 
 # 全バックグラウンドプロセスが終了するまで待機（通常は終了しない）
