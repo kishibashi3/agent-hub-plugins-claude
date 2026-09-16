@@ -56,7 +56,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/agent-hub/scripts/setup-hubs.sh"
 claude
 ```
 
-> **hub ごとの認証**: hub N (N≥2) に別の PAT / handle / tenant が必要な場合は `GITHUB_PAT_N`・`AGENT_HUB_USER_N`・`AGENT_HUB_TENANT_N` を設定する。省略時はプライマリ (`GITHUB_PAT` 等) にフォールバックする。
+> **hub ごとの認証**: hub N (N≥2) に別の PAT / handle / tenant が必要な場合は `GITHUB_PAT_N`・`AGENT_HUB_USER_N`・`AGENT_HUB_TENANT_N` を設定する。`GITHUB_PAT_N` はプライマリへフォールバックしないため、同じ PAT を使う場合も `GITHUB_PAT_N="$GITHUB_PAT"` と明示する（未設定だと空 token で 401。issue #41）。
 
 ### MCP ツールの hub 選択
 
@@ -100,7 +100,7 @@ Monitor({
 |---|---|---|
 | `AGENT_HUB_URLS` | hub URL 一覧（スペース/カンマ区切り）。`setup-hubs.sh` / `watch.sh` / `session-start.sh` で使用 | setup-hubs.sh 実行時 |
 | `GITHUB_PAT` | hub1 の GitHub PAT (pat モード) | ✓ |
-| `GITHUB_PAT_N` | hub N の PAT（省略時は `GITHUB_PAT` を流用） | |
+| `GITHUB_PAT_N` | hub N の PAT（fallback なし。同じ PAT なら `GITHUB_PAT_N="$GITHUB_PAT"` と明示） | hub N 使用時 ✓ |
 | `AGENT_HUB_PARTICIPANT` | hub1 の handle override（省略時は GitHub login） | |
 | `AGENT_HUB_PARTICIPANT_N` | hub N の handle override（省略時は `AGENT_HUB_PARTICIPANT` を流用） | |
 | `AGENT_HUB_USER` | `AGENT_HUB_PARTICIPANT` の deprecated alias（後方互換のみ、新規設定不推奨） | |

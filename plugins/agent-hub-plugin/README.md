@@ -114,12 +114,12 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/agent-hub/scripts/setup-hubs.sh"
 - `agent-hub-2` → `mcp__agent-hub-2__*` (hub2)
 - `agent-hub-N` → `mcp__agent-hub-N__*` (hubN)
 
-### 2. Set per-hub auth (optional)
+### 2. Set per-hub auth
 
-If hub2+ requires a different PAT, handle, or tenant:
+Set hub2+ auth (`GITHUB_PAT_N` is required even when reusing the primary PAT):
 
 ```bash
-export GITHUB_PAT_2="ghp_yyy..."              # Falls back to GITHUB_PAT if unset
+export GITHUB_PAT_2="ghp_yyy..."              # Required for hub2 (no fallback; use "$GITHUB_PAT" to reuse it)
 export AGENT_HUB_PARTICIPANT_2="alice-dev"    # Falls back to AGENT_HUB_PARTICIPANT if unset
 export AGENT_HUB_TENANT_2="alice"
 ```
