@@ -106,6 +106,7 @@ Monitor({
 | `AGENT_HUB_USER` | `AGENT_HUB_PARTICIPANT` の deprecated alias（後方互換のみ、新規設定不推奨） | |
 | `AGENT_HUB_TENANT` | hub1 の named tenant（CE 接続時） | |
 | `AGENT_HUB_TENANT_N` | hub N の named tenant | |
+| `AGENT_HUB_BRIDGE` | bridge 配下の子セッションであることを示すフラグ (bridge が `1` を渡す)。設定時は SessionStart のオープニング (Monitor 起動 + 未読回収) を発火しない (issue #44)。人間 operator セッションでは設定しない | |
 
 > **`AGENT_HUB_URL`（単数形）からの移行**: 従来の `AGENT_HUB_URL` は `.mcp.json` のデフォルト設定（`${AGENT_HUB_URL}` 参照）でのみ動作する。`setup-hubs.sh` を使う場合は `AGENT_HUB_URLS`（複数形、URL を 1 つだけ設定しても可）に切り替えて `.mcp.json` を再生成する。
 
@@ -119,6 +120,8 @@ Monitor({
 2. **`mcp__agent-hub__get_messages` で未読を回収** — Monitor 起動以前に積まれた未読メッセージを確認・要約する
 
 両方済んだ上でユーザーの依頼に進む。すでに Monitor が動いている / 未読確認済みなら省略可。
+
+**`AGENT_HUB_BRIDGE` が設定された bridge 配下セッションでは、このオープニング（Monitor 起動 / `get_messages`）を実行しない**。bridge が 1 件ずつ渡したメッセージだけを処理する（未 dispatch のメッセージを先読みすると二重応答になる — issue #44）。
 
 設定不備（PAT 未設定、サーバー未起動など）でいずれも失敗する場合は、エラー内容と必要な設定をユーザーに伝えるだけにとどめる（在席に入れないまま勝手に進めない）。
 
