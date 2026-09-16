@@ -329,9 +329,18 @@ done
 
 # watchdog: 本プロセスが kill -9 等で trap を通らずに死んだ場合に、残った接続ループを子孫ごと終了する (issue #50)。
 # 孤児が残ると SSE を張り続け、同じ inbox の push を読み手のいない stdout に書いてしまう。
+# 逆に接続ループのどれかが死んだ場合も残りを終了して wait を戻し、本プロセスを終了させてロックを解放する。
+# (watchdog が生き続けると wait が戻らず、監視ゼロのままロックを握り続けて再起動も退避してしまう)
 _WATCH_PID=$$
+_all_alive() {
+  kill -0 "$_WATCH_PID" 2>/dev/null || return 1
+  local _p
+  for _p in "${_HUB_PIDS[@]}"; do
+    kill -0 "$_p" 2>/dev/null || return 1
+  done
+}
 (
-  while kill -0 "$_WATCH_PID" 2>/dev/null; do
+  while _all_alive; do
     sleep 2
   done
   _kill_tree "${_HUB_PIDS[@]}"
