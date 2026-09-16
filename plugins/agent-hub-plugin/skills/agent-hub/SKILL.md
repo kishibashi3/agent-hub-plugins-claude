@@ -106,6 +106,7 @@ Monitor({
 | `AGENT_HUB_USER` | `AGENT_HUB_PARTICIPANT` の deprecated alias（後方互換のみ、新規設定不推奨） | |
 | `AGENT_HUB_TENANT` | hub1 の named tenant（CE 接続時） | |
 | `AGENT_HUB_TENANT_N` | hub N の named tenant | |
+| `AGENT_HUB_BRIDGE` | bridge 配下の子セッションであることを示すフラグ (bridge が `1` を渡す)。設定時は SessionStart のオープニング (Monitor 起動 + 未読回収) を発火しない (issue #44)。人間 operator セッションでは設定しない | |
 
 > **`AGENT_HUB_URL`（単数形）からの移行**: 従来の `AGENT_HUB_URL` は `.mcp.json` のデフォルト設定（`${AGENT_HUB_URL}` 参照）でのみ動作する。`setup-hubs.sh` を使う場合は `AGENT_HUB_URLS`（複数形、URL を 1 つだけ設定しても可）に切り替えて `.mcp.json` を再生成する。
 

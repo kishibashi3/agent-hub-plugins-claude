@@ -11,6 +11,16 @@
 
 set -euo pipefail
 
+# bridge 配下 (agent-hub-bridges の bridge-claude2 等が spawn した子セッション) では
+# オープニングを発火しない (issue #44 / agent-hub-bridges#264)。
+# bridge 経由のセッションは「bridge が 1 件ずつ渡した message だけを処理する」契約であり、
+# ここで get_messages による未読回収を指示すると、bridge が未 dispatch の別メッセージに
+# 先回りで返信してしまい、bridge の正規 dispatch と合わせて二重応答になる。
+# bridge は子プロセスに AGENT_HUB_BRIDGE=1 を渡す。未設定 (人間 operator セッション) では従来どおり。
+if [[ -n "${AGENT_HUB_BRIDGE:-}" && "${AGENT_HUB_BRIDGE}" != "0" ]]; then
+  exit 0
+fi
+
 # 必須環境変数の存在チェック (どちらかでも欠けてれば agent-hub に繋げない)
 # AGENT_HUB_URLS (multi-hub) または AGENT_HUB_URL (single-hub) のどちらかが設定されていれば OK
 if [[ -z "${AGENT_HUB_URL:-}${AGENT_HUB_URLS:-}" ]] || [[ -z "${GITHUB_PAT:-}${AGENT_HUB_USER:-}" ]]; then

@@ -270,6 +270,12 @@ Try `/reload-plugins` first. If still not recognized, reinstall:
 
 `/reload-plugins` reloads plugin file changes (`.mcp.json` / Skill / sidecar). **Env variables are fixed at Claude Code process startup** — if you change env, you must fully exit and restart.
 
+### Session under a bridge replies to messages the bridge has not dispatched yet
+
+The `SessionStart` hook (`session-start.sh`) injects an opening instruction (start Monitor, then `get_messages` to drain unread). A Claude session spawned by a bridge (e.g. `bridge-claude2` in agent-hub-bridges) must process **only the single message the bridge hands it** — draining the inbox itself causes duplicate, contradictory replies (agent-hub-bridges#264).
+
+The bridge signals this by passing `AGENT_HUB_BRIDGE=1` to the child process. When that env var is set (non-empty and not `0`), `session-start.sh` exits without injecting the opening. Human operator sessions leave it unset and keep the default behavior.
+
 ### Push notifications not arriving (Monitor running, watch.sh started)
 
 Server may not support `resources/subscribe`, or watch.sh SSE connection failed. Check watch.sh output at `/tmp/claude-*/tasks/<id>.output`.
