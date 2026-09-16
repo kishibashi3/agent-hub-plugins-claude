@@ -118,9 +118,9 @@ fi
 #   pidfile 方式は「pidfile に記録された 1 個だけ」を boot 時に kill する方式だった。
 #   これは pidfile に載らない孤児プロセス (クラッシュ / セッション跨ぎで init に reparent /
 #   ほぼ同時 boot のレースで全員が「既存なし」と誤判定) を一切掃除できず、実機で 68 個累積した。
-#   flock はカーネルのアドバイザリロックで、ロックを保持したプロセス (とその fd を継承した
-#   子プロセス) が全て終了すると OS が自動解放する。よって kill -9・クラッシュ・セッション
-#   跨ぎでも孤児がロックを握り続ける = 後発は起動できない → 累積しない。レースも flock が解決する。
+#   flock はカーネルのアドバイザリロックで、ロックを保持したプロセスが終了すると OS が自動解放する。
+#   レースも flock が解決する。ロックを持つのは親だけで、子には fd 9 を渡さない (issue #50)。
+#   親が kill -9 されたときは watchdog が子を終了させるので、孤児は累積しない (下記の起動ループ参照)。
 #
 # 方針: 先着 1 個がロックを保持し続け、後発は即 exit して退避する (= "後発が退避")。
 #   Monitor からの respawn は stop→spawn の stop で既存が終了しロックが解放されるため、
@@ -131,7 +131,7 @@ if command -v flock >/dev/null 2>&1 && exec 9>"$LOCKFILE"; then
     echo "[boot $(date +%H:%M:%S)] another watch.sh already holds the lock for ${USER_ID}+${TENANT:-default} — exiting (single-instance enforced)"
     exit 0
   fi
-  # ロック保持のまま本体へ。fd 9 はプロセス終了 (子プロセス含む) で自動 close → OS がロック解放。
+  # ロック保持のまま本体へ。fd 9 は親のプロセス終了で自動 close → OS がロック解放 (子には渡さない)。
   echo "[boot $(date +%H:%M:%S)] single-instance lock acquired: $LOCKFILE"
 else
   # flock 非搭載 (例: macOS は util-linux 同梱でないため flock(1) が無い) / lock ファイルを開けない
@@ -290,13 +290,40 @@ _watch_hub() {
   done
 }
 
-# SIGINT/SIGTERM 受信時に全バックグラウンドジョブを終了してから exit
-# (flock のロックは fd 9 の close = プロセス終了で OS が自動解放するため明示解放は不要)
-trap 'kill $(jobs -p) 2>/dev/null; exit 130' INT TERM
+# プロセスツリーを終了する (issue #50)。
+# 先に子 PID を列挙してから自分を kill し、その後で子を再帰的に kill する
+# (先に親を止めないと、子を kill している間に親のループが新しい curl を起動しうるため)。
+_kill_tree() {
+  local _children
+  _children=$(pgrep -P "$1" 2>/dev/null)
+  kill "$1" 2>/dev/null
+  local _c
+  for _c in $_children; do
+    _kill_tree "$_c"
+  done
+}
 
-# ハブごとにバックグラウンドで接続ループを起動
+# SIGINT/SIGTERM 受信時に全バックグラウンドジョブ (と curl / awk などの孫) を終了してから exit
+# (flock のロックは fd 9 の close = プロセス終了で OS が自動解放するため明示解放は不要)
+trap 'for _j in $(jobs -p); do _kill_tree "$_j"; done; exit 130' INT TERM
+
+# ハブごとにバックグラウンドで接続ループを起動する。
+#
+# issue #50: 子プロセスにはロック fd 9 を渡さない (`9>&-`)。ロックを保持するのは親の watch.sh だけ。
+#   fd 9 を継承させると、親だけが kill -9 された場合に孤児の子 (curl -sN / awk / sleep) が
+#   ロックを握り続け、後から起動した watch.sh が「already holds」で退避して push を取りこぼす。
+# その代わり、親が死んだら子も終わるように watchdog を付ける (#39 の「孤児が累積しない」性質を保つ)。
+#   watchdog は親 PID を監視し、親がいなくなったらハブ接続ループのプロセスツリーを終了する。
+WATCH_PID=$$
 for _i in "${!HUBS[@]}"; do
-  _watch_hub "${HUBS[$_i]}" "hub$((_i+1))" &
+  _watch_hub "${HUBS[$_i]}" "hub$((_i+1))" 9>&- &
+  _hub_pid=$!
+  (
+    while kill -0 "$WATCH_PID" 2>/dev/null; do
+      sleep 2
+    done
+    _kill_tree "$_hub_pid"
+  ) 9>&- &
 done
 
 # 全バックグラウンドプロセスが終了するまで待機（通常は終了しない）
