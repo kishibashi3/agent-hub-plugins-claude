@@ -12,7 +12,7 @@
     "type": "http",
     "url": "${AGENT_HUB_URL_2:-}",
     "headers": {
-      "Authorization": "Bearer ${GITHUB_PAT_2:-${GITHUB_PAT}}",
+      "Authorization": "Bearer ${GITHUB_PAT_2:-}",
       "X-Participant-Id": "${AGENT_HUB_PARTICIPANT_2:-}",
       "X-Tenant-Id": "${AGENT_HUB_TENANT_2:-}"
     }

@@ -33,10 +33,11 @@ COMMITTED_MCP_JSON = PLUGIN_DIR / ".mcp.json"
 SETUP_HUBS = PLUGIN_DIR / "skills" / "agent-hub" / "scripts" / "setup-hubs.sh"
 
 # 完了条件 (issue #41) の grep と等価:
-#   grep -rn ':-${AGENT_HUB' plugins/
-# AGENT_HUB_* 変数の default 値にさらに ${...} がネストしている形を検出する。
+#   grep -rn ':-\${' plugins/
+# 変数の default 値にさらに ${...} がネストしている形を検出する (AGENT_HUB_* に
+# 限らず GITHUB_PAT_N 等の全変数が対象)。
 # 単一 `${AGENT_HUB_TENANT:-}` (default が空) は許容、ネストのみ禁止。
-_NESTED_AGENT_HUB = re.compile(r":-\$\{AGENT_HUB")
+_NESTED_AGENT_HUB = re.compile(r":-\$\{")
 
 
 def _find_nested(text: str) -> list[str]:
@@ -77,6 +78,18 @@ class TestCommittedMcpJson(unittest.TestCase):
             assert ":-${" not in value, (
                 f"{name}: X-Participant-Id contains nested env syntax: {value!r}"
             )
+
+    def test_secondary_pat_is_single_default(self) -> None:
+        """agent-hub-2 の Authorization は単一 :- のみ (issue #41)。
+
+        ${GITHUB_PAT_2:-${GITHUB_PAT}} は Claude Code が最初の } で default を切り、
+        GITHUB_PAT_2 設定時に token 末尾へ "}" が付いて 401 になる。
+        """
+        config = json.loads(COMMITTED_MCP_JSON.read_text())
+        assert (
+            config["agent-hub-2"]["headers"]["Authorization"]
+            == "Bearer ${GITHUB_PAT_2:-}"
+        )
 
 
 class TestGeneratedMcpJson(unittest.TestCase):
@@ -134,6 +147,10 @@ class TestGeneratedMcpJson(unittest.TestCase):
             assert (
                 config["agent-hub-2"]["headers"]["X-Participant-Id"]
                 == "${AGENT_HUB_PARTICIPANT_2:-}"
+            )
+            assert (
+                config["agent-hub-3"]["headers"]["Authorization"]
+                == "Bearer ${GITHUB_PAT_3:-}"
             )
 
 

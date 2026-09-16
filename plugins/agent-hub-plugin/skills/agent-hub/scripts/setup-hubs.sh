@@ -16,7 +16,8 @@
 #                           ※ deprecated alias の AGENT_HUB_USER も後方互換で読む
 #     AGENT_HUB_TENANT      任意 (CE の named tenant。省略時は default tenant)
 #   Hub N (N>=2):
-#     GITHUB_PAT_N          任意 (省略時は GITHUB_PAT を流用)
+#     GITHUB_PAT_N          hub N を使うなら必須 (省略時は空 = 401。GITHUB_PAT への fallback は無い。
+#                           同じ PAT を使う場合も GITHUB_PAT_N="$GITHUB_PAT" と明示する)
 #     AGENT_HUB_PARTICIPANT_N 任意 (省略時は AGENT_HUB_PARTICIPANT を流用。deprecated alias AGENT_HUB_USER_N も読む)
 #     AGENT_HUB_TENANT_N    任意 (省略時は空 = default tenant)
 #
@@ -30,7 +31,7 @@
 #     "agent-hub-2": {
 #       "type": "http",
 #       "url": "http://hub2:3000/mcp",
-#       "headers": { "Authorization": "Bearer ${GITHUB_PAT_2:-${GITHUB_PAT}}", ... }
+#       "headers": { "Authorization": "Bearer ${GITHUB_PAT_2:-}", ... }
 #     }
 #   }
 #
@@ -86,7 +87,7 @@ echo "[setup-hubs] $HUB_COUNT hub(s) を検出。$MCP_JSON を生成中..."
 
     # hub名とauth環境変数参照を決定
     # hub 1 はプライマリ変数を使用（後方互換性維持）
-    # hub N (N>=2) は _N サフィックス変数を使用、省略時はプライマリにフォールバック
+    # hub N (N>=2) は _N サフィックス変数を使用 (プライマリへの fallback は無し)
     if [ "$i" -eq 0 ]; then
       _name="agent-hub"
       _pat='${GITHUB_PAT}'
@@ -97,8 +98,10 @@ echo "[setup-hubs] $HUB_COUNT hub(s) を検出。$MCP_JSON を生成中..."
       _tenant='${AGENT_HUB_TENANT:-}'
     else
       _name="agent-hub-${n}"
-      _pat="\${GITHUB_PAT_${n}:-\${GITHUB_PAT}}"
       # ネスト禁止。単一 :- まで (空 fallback) は可 (issue #41)。
+      # ${GITHUB_PAT_N:-${GITHUB_PAT}} は Claude Code が最初の } で default を切るため
+      # GITHUB_PAT_N 設定時に末尾へ "}" が付いた token を送り 401 になる。
+      _pat="\${GITHUB_PAT_${n}:-}"
       _user="\${AGENT_HUB_PARTICIPANT_${n}:-}"
       _tenant="\${AGENT_HUB_TENANT_${n}:-}"
     fi
