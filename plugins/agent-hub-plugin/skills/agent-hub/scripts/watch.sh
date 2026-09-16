@@ -319,7 +319,7 @@ for _i in "${!HUBS[@]}"; do
   _watch_hub "${HUBS[$_i]}" "hub$((_i+1))" 9>&- &
   _hub_pid=$!
   (
-    while kill -0 "$WATCH_PID" 2>/dev/null; do
+    while kill -0 "$WATCH_PID" 2>/dev/null && kill -0 "$_hub_pid" 2>/dev/null; do
       sleep 2
     done
     _kill_tree "$_hub_pid"
