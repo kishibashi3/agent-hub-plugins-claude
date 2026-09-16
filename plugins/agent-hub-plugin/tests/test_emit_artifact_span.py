@@ -582,11 +582,14 @@ class TestMain(unittest.TestCase):
     def test_service_name_from_agent_hub_user(self) -> None:
         """AGENT_HUB_USER が設定されていれば service_name が "@{handle}" になる (issue #26)。"""
         payload = _write_payload("/f.py")
+        env = {
+            k: v for k, v in os.environ.items()
+            if k != "AGENT_HUB_PARTICIPANT"
+        }
+        env["AGENT_HUB_TELEMETRY_URL"] = "http://otel:4318"
+        env["AGENT_HUB_USER"] = "reviewer"
         with patch("sys.stdin", io.StringIO(json.dumps(payload))), \
-             patch.dict(os.environ, {
-                 "AGENT_HUB_TELEMETRY_URL": "http://otel:4318",
-                 "AGENT_HUB_USER": "reviewer",
-             }), \
+             patch.dict(os.environ, env, clear=True), \
              patch.object(target, "emit_artifact_span") as mock_emit:
             target.main()
 
