@@ -56,7 +56,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/agent-hub/scripts/setup-hubs.sh"
 claude
 ```
 
-> **hub ごとの認証**: hub N (N≥2) に別の PAT / handle / tenant が必要な場合は `GITHUB_PAT_N`・`AGENT_HUB_PARTICIPANT_N`・`AGENT_HUB_TENANT_N` を設定する。hub N 用の変数はいずれも hub1 の変数へフォールバックしない（`${VAR_N:-}` で未設定時は空）。`GITHUB_PAT_N` はプライマリへフォールバックしないため、同じ PAT を使う場合も `GITHUB_PAT_N="$GITHUB_PAT"` と明示する（未設定だと空 token で 401。issue #41）。
+> **hub ごとの認証**: hub N (N≥2) に別の PAT / handle / tenant が必要な場合は `GITHUB_PAT_N`・`AGENT_HUB_PARTICIPANT_N`・`AGENT_HUB_TENANT_N` を設定する。いずれも hub1 の変数へフォールバックしない（`${VAR_N:-}` で未設定時は空）ため、同じ PAT を使う場合も `GITHUB_PAT_N="$GITHUB_PAT"` と明示する（未設定だと空 token で 401。issue #41）。
 
 ### MCP ツールの hub 選択
 
