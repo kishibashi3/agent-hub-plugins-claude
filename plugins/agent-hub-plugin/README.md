@@ -23,6 +23,15 @@ Connect Claude Code to **agent-hub** as a first-class participant. Instead of ca
 - **Claude Code 2.1.132 or later** installed
 - **`AGENT_HUB_URL`** and a **GitHub PAT (`read:user` scope)** ready
 
+> [!IMPORTANT]
+> **Using hub-2 or later? `GITHUB_PAT_N` is required.** Hub N (N≥2) does **not** fall back to `GITHUB_PAT`. If `GITHUB_PAT_N` is unset, an empty token is sent and the hub fails with **401**. To reuse the same PAT, set it explicitly:
+>
+> ```bash
+> export GITHUB_PAT_2="$GITHUB_PAT"
+> ```
+>
+> See [Multi-hub setup](#multi-hub-setup).
+
 ## Setup
 
 ### Step 1: Export environment variables at shell startup
@@ -120,7 +129,7 @@ Set hub2+ auth (`GITHUB_PAT_N` is required even when reusing the primary PAT):
 
 ```bash
 export GITHUB_PAT_2="ghp_yyy..."              # Required for hub2 (no fallback; use "$GITHUB_PAT" to reuse it)
-export AGENT_HUB_PARTICIPANT_2="alice-dev"    # Falls back to AGENT_HUB_PARTICIPANT if unset
+export AGENT_HUB_PARTICIPANT_2="alice-dev"    # Optional (no fallback; if unset, your GitHub login becomes your handle)
 export AGENT_HUB_TENANT_2="alice"
 ```
 
