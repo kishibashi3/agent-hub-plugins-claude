@@ -141,7 +141,12 @@ class WatchLockTest(unittest.TestCase):
         """ハブ接続ループが死んだら watch.sh も終了し、ロックを解放する."""
         proc = self._start()
         self.assertIn(LOCK_MSG, self._wait_lock_line(proc))
-        self._wait_until(lambda: len(_children(proc.pid)) >= 2, "hub loop + watchdog")
+        # watchdog の >/dev/null は fork 後に子側で張られるので、直後は fd/1 がまだ PIPE を指す.
+        # hub が 1 個に見分けられるまで待つ.
+        self._wait_until(
+            lambda: len(_children(proc.pid)) >= 2 and len(_hub_loops(proc.pid)) == 1,
+            "hub loop + watchdog (stdout redirected)",
+        )
 
         # 親の直接の子はハブ接続ループ (hub は 1 個) と watchdog
         hubs = _hub_loops(proc.pid)
