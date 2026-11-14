@@ -327,7 +327,7 @@ _HUB_PIDS=()
 _WATCHDOG_PID=
 
 # SIGINT/SIGTERM 受信時に全バックグラウンドジョブを子孫ごと終了してから exit
-# (flock のロックは fd 9 を持つ本プロセスの終了で OS が自動解放するため明示解放は不要)
+# (flock のロックは LOCK_FD を持つ本プロセスの終了で OS が自動解放するため明示解放は不要)
 trap '_kill_tree ${_WATCHDOG_PID:+"$_WATCHDOG_PID"} "${_HUB_PIDS[@]}"; exit 130' INT TERM
 
 # ハブごとにバックグラウンドで接続ループを起動。

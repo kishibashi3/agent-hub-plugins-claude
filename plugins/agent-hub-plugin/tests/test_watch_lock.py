@@ -41,6 +41,22 @@ def _children(pid: int) -> list[int]:
     return sorted(int(p) for p in out.split())
 
 
+def _hub_loops(pid: int) -> list[int]:
+    """親の直接の子のうちハブ接続ループの PID を返す (PID の並び順には依存しない).
+
+    watchdog は stdout を /dev/null にリダイレクトしているので、stdout の向き先で見分ける。
+    """
+    hubs = []
+    for child in _children(pid):
+        try:
+            stdout = os.readlink(f"/proc/{child}/fd/1")
+        except OSError:
+            continue
+        if stdout != os.devnull:
+            hubs.append(child)
+    return hubs
+
+
 def _alive(pid: int) -> bool:
     try:
         os.kill(pid, 0)
@@ -50,7 +66,8 @@ def _alive(pid: int) -> bool:
 
 
 @unittest.skipUnless(
-    shutil.which("flock") and shutil.which("pgrep"), "flock / pgrep が必要"
+    shutil.which("flock") and shutil.which("pgrep") and os.path.isdir("/proc"),
+    "flock / pgrep / /proc が必要",
 )
 class WatchLockTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -124,10 +141,17 @@ class WatchLockTest(unittest.TestCase):
         """ハブ接続ループが死んだら watch.sh も終了し、ロックを解放する."""
         proc = self._start()
         self.assertIn(LOCK_MSG, self._wait_lock_line(proc))
-        self._wait_until(lambda: len(_children(proc.pid)) >= 2, "hub loop + watchdog")
+        # watchdog の >/dev/null は fork 後に子側で張られるので、直後は fd/1 がまだ PIPE を指す.
+        # hub が 1 個に見分けられるまで待つ.
+        self._wait_until(
+            lambda: len(_children(proc.pid)) >= 2 and len(_hub_loops(proc.pid)) == 1,
+            "hub loop + watchdog (stdout redirected)",
+        )
 
-        # 親の直接の子は [ハブ接続ループ, watchdog] の順に起動される (hub は 1 個)
-        hub_pid = _children(proc.pid)[0]
+        # 親の直接の子はハブ接続ループ (hub は 1 個) と watchdog
+        hubs = _hub_loops(proc.pid)
+        self.assertEqual(len(hubs), 1)
+        hub_pid = hubs[0]
         os.kill(hub_pid, signal.SIGKILL)
 
         self._wait_until(lambda: proc.poll() is not None, "watch.sh to exit")
